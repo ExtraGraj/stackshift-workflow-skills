@@ -1,0 +1,10 @@
+{
+  "$schema": "./_registry.schema.json",
+  "description": "Registry of StackShift seeding strategies. A seed is a reusable data/content scaffold that populates a specific area of the project when materialized. The directory is intentionally empty in v0.1.0 — add seeds by dropping a markdown file into this folder and registering it below. Same tier semantics as protocols.",
+  "tiers": {
+    "required": "Seeding is required for the workflow to produce a valid project state.",
+    "recommended": "Seeding is a quality-of-life improvement — workflow functions without it.",
+    "optional": "Project-specific or opt-in seeding for advanced scenarios."
+  },
+  "seeds": []
+}

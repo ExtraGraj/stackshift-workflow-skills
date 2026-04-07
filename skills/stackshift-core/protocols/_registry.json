@@ -1,0 +1,74 @@
+{
+  "$schema": "./_registry.schema.json",
+  "description": "Registry of StackShift protocols. Each entry has a tier that drives install mode selection and is materialized to /docs/protocol/<file or dir> during bootstrap. Entries may be a single file (`file`) or a directory (`dir`) — directories are copied recursively.",
+  "tiers": {
+    "required": "Workflow cannot function correctly without it — violations cause build errors, runtime errors, or schema load failures.",
+    "recommended": "Quality and UX — no errors if omitted, but Sanity Studio or author experience suffers noticeably.",
+    "optional": "Opt-in systems that introduce their own architecture, dependencies, or directory structure. Only install if the project adopts the system."
+  },
+  "protocols": [
+    {
+      "id": "factory-function-pattern",
+      "tier": "required",
+      "file": "factory-function-pattern.md",
+      "title": "Factory Function Pattern",
+      "summary": "Required shape for every new field factory. Plain objects, no defineField() wrappers. Wrong shape breaks hideInVariants at runtime."
+    },
+    {
+      "id": "sub-field-visibility",
+      "tier": "required",
+      "file": "sub-field-visibility.md",
+      "title": "Sub-Field Visibility",
+      "summary": "Hiding sub-fields within a shared object without duplicate field names. Duplicates cause Sanity to reject the schema on load."
+    },
+    {
+      "id": "variant-router",
+      "tier": "required",
+      "file": "variant-router.md",
+      "title": "Variant Router (index.tsx)",
+      "summary": "Rules for the section index.tsx. Missing props interface export breaks the variant file's TypeScript compile."
+    },
+    {
+      "id": "one-time-custom-schema-setup",
+      "tier": "required",
+      "file": "one-time-custom-schema-setup.md",
+      "title": "One-Time Custom Schema Setup",
+      "summary": "Project-level setup to enable custom local variants. Without it, custom sections never appear in Studio. Run once per project."
+    },
+    {
+      "id": "field-reuse-first",
+      "tier": "recommended",
+      "file": "field-reuse-first.md",
+      "title": "Field Reuse First",
+      "summary": "Check local and base-package field factories before creating any new field. Duplication works but pollutes the schema."
+    },
+    {
+      "id": "hide-if-variant",
+      "tier": "recommended",
+      "file": "hide-if-variant.md",
+      "title": "Hide If Variant",
+      "summary": "Use hideIfVariantIn() to exclude fields from specific variants. Authors otherwise see irrelevant fields — no error, just bad UX."
+    },
+    {
+      "id": "preview-conventions",
+      "tier": "recommended",
+      "file": "preview-conventions.md",
+      "title": "Preview Conventions",
+      "summary": "Preview blocks for arrays and objects. Image vs icon fallback decision tree. Missing previews don't error — Studio just looks empty."
+    },
+    {
+      "id": "array-layout",
+      "tier": "recommended",
+      "file": "array-layout.md",
+      "title": "Array Layout Conventions",
+      "summary": "Grid / tags / collapsible layout options for different array content types. Author UX only."
+    },
+    {
+      "id": "section-directory-layout",
+      "tier": "recommended",
+      "file": "section-directory-layout.md",
+      "title": "Section Directory Layout",
+      "summary": "initialValue/ and images/ directories for placeholder content and variant thumbnails. No errors if omitted — just poor author onboarding."
+    }
+  ]
+}
