@@ -1,6 +1,6 @@
 {
   "name": "@extragraj/stackshift-skills",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "packageManager": "pnpm@9.0.0",
   "bin": {
     "stackshift": "./bin/cli.mjs"
