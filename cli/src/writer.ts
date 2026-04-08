@@ -111,6 +111,25 @@ function resolveProtocolSkillName(tier: Exclude<ProtocolTier, 'custom'>): string
 }
 
 /**
+ * Detect all platforms where StackShift is currently installed.
+ * Returns list of platforms that have stackshift-core installed.
+ */
+function getInstalledPlatforms(scope: 'project' | 'global'): Platform[] {
+  const platforms: Platform[] = [];
+  const platformsToCheck: Platform[] = ['agents', 'claude'];
+
+  for (const platform of platformsToCheck) {
+    const targetDir = resolveTargetDir(scope, platform);
+    const coreDir = join(targetDir, 'stackshift-core');
+    if (pathExistsSync(coreDir)) {
+      platforms.push(platform);
+    }
+  }
+
+  return platforms;
+}
+
+/**
  * Remove old protocol bundle folders when installing a new tier.
  * Only one protocol tier can be active at a time.
  *
@@ -149,11 +168,32 @@ function cleanupOldProtocolBundles(
 }
 
 /**
+ * Remove old protocol bundles from lock file.
+ * Keeps only the new bundle entry.
+ */
+function cleanupLockFile(lockPath: string, newBundleName: string): void {
+  if (!pathExistsSync(lockPath)) return;
+
+  try {
+    const lock = readJsonSync(lockPath) as LockFile;
+    // Remove all old protocol bundle entries
+    lock.skills = lock.skills.filter(
+      (s) => !s.name.startsWith('stackshift-protocols-') || s.name === newBundleName
+    );
+    writeJsonSync(lockPath, lock, { spaces: 2 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`Warning: Could not clean lock file ${lockPath}: ${message}`);
+  }
+}
+
+/**
  * Write .stackshift/installed.json marker for AI agent bootstrap.
  *
- * NOTE: This file is NOT the source of truth for installed skills.
- * The CLI uses skills-lock.json for tier detection.
- * This marker exists solely to tell the AI agent that bootstrap has run.
+ * IMPORTANT: This file is updated every time the tier changes.
+ * It serves as the source of truth for the selected protocol tier mode.
+ * The CLI uses skills-lock.json for installation detection,
+ * but .stackshift/installed.json is the canonical record of tier selection.
  */
 function writeStackshiftMarker(
   choices: InstallChoices,
@@ -162,7 +202,8 @@ function writeStackshiftMarker(
   if (choices.scope !== 'project') return;
 
   const markerPath = join(process.cwd(), '.stackshift', 'installed.json');
-  if (pathExistsSync(markerPath)) return;
+  // REMOVED: if (pathExistsSync(markerPath)) return;
+  // Always overwrite to keep tier selection up to date
 
   let skillVersion = '0.1.0';
   try {
@@ -216,8 +257,23 @@ export function writeSelection(
   const results: InstallResult[] = [];
   const now = new Date().toISOString();
 
-  // Install to each selected platform
-  for (const platform of choices.platforms) {
+  // Detect all platforms where StackShift is already installed
+  const installedPlatforms = getInstalledPlatforms(choices.scope);
+
+  // Merge: selected platforms + already installed platforms
+  // This ensures we sync protocol tiers across ALL platforms, not just selected ones
+  const allPlatformsToUpdate = new Set<Platform>([
+    ...choices.platforms,
+    ...installedPlatforms,
+  ]);
+
+  // Determine the bundle name once (used for all platforms)
+  const bundleName = choices.protocolTier === 'custom'
+    ? 'stackshift-protocols-custom'
+    : resolveProtocolSkillName(choices.protocolTier);
+
+  // Install/sync to each platform
+  for (const platform of allPlatformsToUpdate) {
     const targetDir = resolveTargetDir(choices.scope, platform);
     const lockPath = resolveLockPath(choices.scope, platform);
     ensureDirSync(targetDir);
@@ -232,11 +288,12 @@ export function writeSelection(
       installed.push(coreSkill.name);
     }
 
+    // Clean up old protocol bundles (folders and lock entries)
+    cleanupOldProtocolBundles(targetDir, bundleName);
+    cleanupLockFile(lockPath, bundleName);
+
     // Install protocol bundle
     if (choices.protocolTier === 'custom') {
-      // Clean up old bundles before installing custom
-      cleanupOldProtocolBundles(targetDir, 'stackshift-protocols-custom');
-
       buildCustomProtocolSkill(choices.customProtocols, allProtocols, targetDir);
       appendLock(lockPath, {
         name: 'stackshift-protocols-custom',
@@ -245,11 +302,6 @@ export function writeSelection(
       });
       installed.push('stackshift-protocols-custom');
     } else {
-      const bundleName = resolveProtocolSkillName(choices.protocolTier);
-
-      // Clean up old bundles before installing new tier
-      cleanupOldProtocolBundles(targetDir, bundleName);
-
       const bundleSkill = skills.find((s) => s.name === bundleName);
       if (bundleSkill) {
         copySkillFolder(bundleSkill.folderPath, targetDir);
@@ -261,7 +313,7 @@ export function writeSelection(
     results.push({ platform, skills: installed });
   }
 
-  // Write .stackshift/installed.json so bootstrap skips re-prompting (project scope only)
+  // Write .stackshift/installed.json (always overwrites to keep tier up to date)
   writeStackshiftMarker(choices, allProtocols);
 
   return results;

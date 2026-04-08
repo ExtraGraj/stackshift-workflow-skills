@@ -1,26 +1,29 @@
 /**
  * Lock file architecture:
  *
- * - skills-lock.json: Source of truth for installed skills
- *   Location: .agents/skills-lock.json or .claude/skills-lock.json
- *   Purpose: Tracks which skills are installed and when
- *   Checked: On every install to detect existing tiers
- *
- * - .stackshift/installed.json: Bootstrap marker (project scope only)
+ * - .stackshift/installed.json: SOURCE OF TRUTH for protocol tier selection
  *   Location: .stackshift/installed.json (project root)
- *   Purpose: Tells AI agent bootstrap has run, stores selected mode
- *   Checked: Only by AI agent on first invocation, never by CLI
- *   Created: Only for project-scope installs (not global)
+ *   Purpose: Records which tier was selected (mode: required/recommended/all/interactive)
+ *   Updated: On every install or repair to keep tier selection current
+ *   Used by: AI agent for bootstrap, CLI for detecting tier changes
+ *   Scope: Project-scope installs only (not global)
  *
- * Detection mechanism:
+ * - skills-lock.json: Installation record per platform
+ *   Location: .agents/skills-lock.json or .claude/skills-lock.json
+ *   Purpose: Tracks which skills are physically installed on each platform
+ *   Updated: On every install to each platform
+ *   Used by: CLI for detecting existing installations
+ *
+ * Tier change detection:
  *   - Reads both .agents/skills-lock.json and .claude/skills-lock.json
  *   - Finds entries starting with "stackshift-protocols-"
  *   - Returns first found, warns if different across platforms
  *
- * Dynamic behavior:
- *   - Yes, lock file updates when new tier installed
- *   - appendLock() filters out old entry by name before adding new one
- *   - Physical cleanup removes old bundle folders (if Enhancement 4 implemented)
+ * Cross-platform sync:
+ *   - When tier changes, ALL platforms with StackShift are updated
+ *   - Even if user selects only one platform, all existing installations sync
+ *   - Old bundle folders removed from all platforms
+ *   - Lock files updated for all platforms
  */
 
 import { intro, outro, spinner, note } from '@clack/prompts';

@@ -1,8 +1,13 @@
 import { intro, outro, select, spinner } from '@clack/prompts';
 import fsExtra from 'fs-extra';
-const { readdirSync, pathExistsSync, removeSync, readJsonSync, writeJsonSync } = fsExtra;
+const { readdirSync, pathExistsSync, removeSync, readJsonSync, writeJsonSync, readFileSync } = fsExtra;
 import { join } from 'path';
 import { homedir } from 'os';
+import { fileURLToPath } from 'url';
+import { resolve } from 'path';
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const skillVersionPath = resolve(__dirname, '../../skill.version');
 
 interface LockEntry {
   name: string;
@@ -151,6 +156,51 @@ function updateAllLockFiles(keepBundle: string): void {
   }
 }
 
+/**
+ * Update .stackshift/installed.json to reflect the repaired tier
+ */
+function updateInstalledMarker(keepBundle: string): void {
+  const markerPath = join(process.cwd(), '.stackshift', 'installed.json');
+
+  // Only update if it exists (project scope installations)
+  if (!pathExistsSync(markerPath)) return;
+
+  try {
+    const existing = readJsonSync(markerPath) as InstalledJson;
+
+    // Map bundle name to mode
+    const bundleToMode: Record<string, string> = {
+      'stackshift-protocols-required': 'required',
+      'stackshift-protocols-recommended': 'recommended',
+      'stackshift-protocols-full': 'all',
+      'stackshift-protocols-custom': 'interactive',
+    };
+
+    const newMode = bundleToMode[keepBundle] || existing.mode;
+
+    // Read current version
+    let skillVersion = existing.protocols?.[0]?.tier || '0.1.0';
+    try {
+      skillVersion = readFileSync(skillVersionPath, 'utf8').trim();
+    } catch { /* use existing */ }
+
+    // Update the marker with new mode
+    writeJsonSync(
+      markerPath,
+      {
+        ...existing,
+        skillVersion,
+        mode: newMode,
+        installedAt: new Date().toISOString(),
+      },
+      { spaces: 2 }
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`Warning: Could not update .stackshift/installed.json: ${message}`);
+  }
+}
+
 export async function repair(): Promise<void> {
   intro('stackshift repair — fix multi-tier installations');
 
@@ -207,10 +257,14 @@ export async function repair(): Promise<void> {
   // Update all lock files
   updateAllLockFiles(keepTier as string);
 
+  // Update .stackshift/installed.json to reflect the repaired tier
+  updateInstalledMarker(keepTier as string);
+
   s2.stop('Cleanup complete');
 
   outro(
     `✓ Kept: ${keepTier}\n` +
-    `  Removed ${removedCount} bundle(s): ${Array.from(allBundles).filter(b => b !== keepTier).map(b => b.replace('stackshift-protocols-', '')).join(', ')}`
+    `  Removed ${removedCount} bundle(s): ${Array.from(allBundles).filter(b => b !== keepTier).map(b => b.replace('stackshift-protocols-', '')).join(', ')}\n` +
+    `  Updated .stackshift/installed.json`
   );
 }
