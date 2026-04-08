@@ -1,0 +1,24 @@
+{
+  "skills": [
+    {
+      "name": "stackshift-protocols-recommended",
+      "installedAt": "2026-04-08T07:37:09.511Z",
+      "scope": "project"
+    },
+    {
+      "name": "stackshift-protocols-full",
+      "installedAt": "2026-04-08T07:38:06.468Z",
+      "scope": "project"
+    },
+    {
+      "name": "stackshift-core",
+      "installedAt": "2026-04-08T07:39:32.156Z",
+      "scope": "project"
+    },
+    {
+      "name": "stackshift-protocols-required",
+      "installedAt": "2026-04-08T07:39:32.156Z",
+      "scope": "project"
+    }
+  ]
+}

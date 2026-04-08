@@ -21,7 +21,60 @@ Delegates all component rendering to `ui-forge`.
 
 ## 0. Bootstrap check (first invocation only)
 
-Before doing any workflow step, check the project root for `.stackshift/installed.json`.
+Before doing any workflow step:
+
+### 1. Validate installation integrity
+
+Check for multi-tier installations by listing all folders in `.agents/skills/` and `.claude/skills/` (if they exist):
+
+```bash
+# Find all protocol bundle folders
+ls .agents/skills/ 2>/dev/null | grep "^stackshift-protocols-"
+ls .claude/skills/ 2>/dev/null | grep "^stackshift-protocols-"
+```
+
+Count the unique protocol bundle folder names found.
+
+**If multiple protocol bundles detected (count > 1):**
+
+```
+⚠️ Installation Issue Detected
+
+Multiple protocol tier bundles found:
+[list unique folder names, e.g., stackshift-protocols-required, stackshift-protocols-full]
+
+Only ONE protocol tier should be active at a time.
+Each tier already includes all lower tiers, so having multiple is redundant and can cause confusion.
+
+To fix this issue:
+1. Run: npx @extragraj/stackshift-skills repair
+   OR
+2. Manually delete all but one protocol bundle folder from .agents/skills/ and .claude/skills/
+3. Run this skill again
+
+Which tier do you want to keep?
+(Check .stackshift/installed.json for your intended tier selection)
+```
+
+**Stop workflow.** Wait for user to fix installation before proceeding.
+
+**If stackshift-core folder is missing from .agents/skills/ or .claude/skills/:**
+
+```
+⚠️ Missing Required Skill
+
+stackshift-core is required for StackShift sections.
+It provides the workflow, protocols, and references system.
+
+To fix:
+Run: npx @extragraj/stackshift-skills init
+```
+
+**Stop workflow.** Wait for user to install.
+
+### 2. Check bootstrap marker
+
+If installation is valid, check the project root for `.stackshift/installed.json`.
 
 - **Missing** → run `bootstrap/install.md`. Stop. Return here after user confirms.
 - **Present** → skip. Proceed to workflow.

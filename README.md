@@ -8,83 +8,89 @@ A structured agentic skill for building sections and variants inside StackShift,
 
 ## Installation
 
-Two installation methods are available: **manual installation** via `npx skills add` for granular control, or **guided installation** via the interactive CLI for streamlined setup. Both methods install to `.agents/skills/` or `.claude/skills/` depending on platform preference. The `stackshift-core` package is required in all cases.
+Two installation methods are available: **manual installation** via `npx skills add`, or **guided installation** via the interactive CLI. Both methods install to `.agents/skills/` or `.claude/skills/` depending on platform preference. The `stackshift-core` package is required in all cases.
 
 ### Option A — Manual Installation
 
-Install skill packages individually. The AI agent handles protocol setup automatically on first use through a one-time bootstrap conversation (see [Bootstrap](#bootstrap)).
+Install skill packages individually using the `npx skills add` command.
 
 ```bash
 # Install globally (available across all projects)
-npx skills add extragraj/stackshift-workflow-skills -y -g -a claude-code
+npx skills add extragraj/stackshift-workflow-skills -g -a claude-code
 
 # Install to current project only
-npx skills add extragraj/stackshift-workflow-skills -y -a claude-code
+npx skills add extragraj/stackshift-workflow-skills -a claude-code
 ```
 
 #### Command Flags
 
 | Flag | Description |
 |------|-------------|
-| `-y` | Skip confirmation prompts |
 | `-g` | Install globally (available across all projects) |
 | `-a claude-code` | Install to `.claude/skills/` (Claude Code) |
-| `-a cline` | Install to `.agents/skills/` (General - works with multiple AI tools) |
 
-#### Installed Packages
+#### Important Installation Guidelines
 
-- `stackshift-core` (workflow, protocols, references, bootstrap)
-- `stackshift-protocols-recommended` (default tier bundle)
+**When using `npx skills add`, you MUST:**
 
-#### Available Protocol Tiers
+1. **Always install `stackshift-core`** - This is required for the workflow system
+2. **Install only ONE protocol tier bundle** - Select either:
+   - `stackshift-protocols-required` (4 required protocols only)
+   - `stackshift-protocols-recommended` (4 required + 5 recommended) ← **Recommended**
+   - `stackshift-protocols-full` (all tiers)
 
-After installing the core, you may install different protocol tier bundles:
+**Do NOT select multiple protocol tier bundles** (e.g., both `required` and `full`). Each tier is cumulative and includes all lower tiers, so installing multiple bundles is redundant and will cause installation conflicts.
 
-| Skill Package | Protocols Included |
-|---------------|-------------------|
-| `stackshift-protocols-required` | 4 required protocols only |
-| `stackshift-protocols-recommended` | 4 required + 5 recommended (default) |
-| `stackshift-protocols-full` | All tiers (no optional protocols in v0.1.2) |
+#### Protocol Tier Comparison
 
-**Important:** Installing a different tier replaces the previous one. Only one tier bundle can be active at a time.
+| Skill Package | Protocols Included | Use Case |
+|---------------|-------------------|----------|
+| `stackshift-protocols-required` | 4 required protocols only | Minimal installation |
+| `stackshift-protocols-recommended` | 4 required + 5 recommended (default) | **Recommended for most users** |
+| `stackshift-protocols-full` | All tiers (required + recommended + optional) | Complete protocol coverage |
 
-On first AI invocation after installation, bootstrap runs automatically. It prompts for which protocols to materialize into `/docs/protocol/` so your team can customize and version them alongside the codebase.
+#### Fixing Multi-Tier Installations
+
+If you accidentally installed multiple protocol tier bundles, run:
+
+```bash
+npx @extragraj/stackshift-skills repair
+```
+
+This will scan for multiple bundles and help you keep only one.
 
 ---
 
-### Option B — Interactive CLI
+### Option B — Interactive CLI (Recommended)
 
-An interactive command-line interface that handles tier selection, platform selection (supports multiple), install scope, and bootstrap marker creation in a single guided flow.
+An interactive command-line interface that handles tier selection, platform selection (supports multiple), install scope, and bootstrap marker creation in a single guided flow. **This is the recommended installation method** as it prevents multi-tier conflicts and provides proper tier management.
 
 ```bash
-# Install from npm (published package)
+# Interactive installation (recommended)
 npx @extragraj/stackshift-skills init
+
+# Non-interactive with defaults (recommended tier, project scope, agents platform)
+npx @extragraj/stackshift-skills init --no-interactive
+
+# Non-interactive with specific options
+npx @extragraj/stackshift-skills init --tier full --scope project --platform agents,claude --no-interactive
 
 # Run locally from this repository
 npx . init
 ```
 
-#### Installation Flow
+**Available Flags:**
 
-The CLI prompts for four configuration decisions:
+| Flag | Values | Default | Description |
+|------|--------|---------|-------------|
+| `--tier` | `required`, `recommended`, `full` | `recommended` | Protocol tier to install |
+| `--scope` | `project`, `global` | `project` | Install location |
+| `--platform` | `agents`, `claude`, `agents,claude` | `agents` | Platform(s) to install to |
+| `--no-interactive` | (flag) | `false` | Skip prompts, use flags + defaults |
+| `--help` | (flag) | - | Show help text |
 
-```
-Select protocol tier:
-  ○ Required only
-  ● Required + recommended  (recommended)
-  ○ All protocols (required + recommended + optional)
-  ○ Custom selection
 
-Install location:
-  ● Project  (recommended)
-  ○ Global
-
-Select platform(s):  (multi-select)
-  ◉ General (.agents/)  (recommended)
-  ◯ Claude Code (.claude/)
-```
-
-**Platform support:** Select one or both platforms to create skill directories in `.agents/` (General) and/or `.claude/` (Claude Code).
+**Note:** Custom tier selection requires interactive mode (not supported with `--no-interactive`).
 
 #### Protocol Replacement Warning
 
@@ -95,7 +101,40 @@ If a protocol tier is already installed and `init` runs again, the CLI detects t
   Replace with a different tier? (y/N)
 ```
 
+For custom tier selections, the prompt defaults to `Yes`:
+
+```
+? Custom protocol selection detected.
+  Replace with a pre-built tier? (Y/n)
+```
+
 This prevents accidental tier replacement and ensures the change is intentional.
+
+#### Multi-Platform Tier Detection
+
+If different tiers are installed across platforms (e.g., `required` in `.agents/` and `full` in `.claude/`), the CLI warns:
+
+```
+┌  Warning
+│
+│  Different tiers detected:
+│    .agents: required
+│    .claude: full
+│
+│  This installation will replace BOTH.
+│
+└
+```
+
+#### Repair Command
+
+If you encounter multi-tier installation issues (e.g., from using `npx skills add`), use the repair command:
+
+```bash
+npx @extragraj/stackshift-skills repair
+```
+
+This scans for multiple protocol bundles and helps you keep only one.
 
 ---
 
@@ -103,13 +142,37 @@ This prevents accidental tier replacement and ensures the change is intentional.
 
 After installing via either Option A or Option B:
 
-1. Skills are installed to chosen location(s) and platform(s)
+1. **Skills are installed** to chosen location(s) and platform(s):
+   - `stackshift-core` (always included - workflow, protocols, references)
+   - One protocol tier bundle (required, recommended, or full)
    - **Option A:** To `.agents/skills/` or `.claude/skills/` based on `-a` flag
-   - **Option B:** To selected platform(s) from interactive prompt
-2. `.stackshift/installed.json` marker is written (project scope only)
-3. Bootstrap runs on first AI invocation:
+   - **Option B:** To selected platform(s) from interactive prompt or `--platform` flag
+
+2. **Physical cleanup** (Option B only):
+   - Old protocol bundle folders are automatically removed
+   - Prevents multi-tier conflicts
+   - Updates lock files across all platforms
+
+3. **Bootstrap marker** (`.stackshift/installed.json`) is written (project scope only)
+
+4. **AI agent validation** on first invocation:
+   - Checks for multiple protocol bundles (Option A safety check)
+   - Validates `stackshift-core` presence
+   - If issues found, suggests running `npx @extragraj/stackshift-skills repair`
+
+5. **Bootstrap runs** on first AI invocation (after validation passes):
    - **Project scope:** Uses recorded tier selection, materializes protocols to `/docs/` (no prompts)
    - **Global scope:** Prompts for install mode in each new project, then materializes protocols
+
+#### Installation Method Comparison
+
+| Feature | Option A (`npx skills add`) | Option B (`npx @extragraj/stackshift-skills init`) |
+|---------|----------------------------|---------------------------------------------------|
+| **Tier enforcement** | Manual (user must select correctly) | Automatic (radio buttons, only one selectable) |
+| **Core installation** | Manual (must remember to select) | Automatic (always included) |
+| **Physical cleanup** | No (old folders remain) | Yes (automatic removal) |
+| **Multi-tier prevention** | No (requires repair after) | Yes (prevents during install) |
+| **Automation support** | Limited | Full (with `--no-interactive` flag) |
 
 **Note:** The `ui-forge` companion skill must be installed independently regardless of which installation option is chosen.
 

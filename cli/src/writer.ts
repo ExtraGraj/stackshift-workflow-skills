@@ -1,6 +1,6 @@
 import { writeFileSync } from 'fs';
 import fsExtra from 'fs-extra';
-const { copySync, ensureDirSync, readJsonSync, writeJsonSync, pathExistsSync, readFileSync } = fsExtra;
+const { copySync, ensureDirSync, readJsonSync, writeJsonSync, pathExistsSync, readFileSync, removeSync } = fsExtra;
 import { join, resolve, basename } from 'path';
 import { homedir } from 'os';
 import { fileURLToPath } from 'url';
@@ -37,16 +37,21 @@ function resolveLockPath(scope: 'project' | 'global', platform: Platform): strin
   return join(process.cwd(), baseDir, LOCK_FILE);
 }
 
+/**
+ * Update skills-lock.json (source of truth for installed skills).
+ *
+ * INTENTIONAL: Filters out previous entry with same name to prevent duplicates.
+ * For protocol bundles, this means only one tier can be active at a time.
+ * The installed tier (required/recommended/full) already includes all lower tiers,
+ * so having multiple bundles would be redundant.
+ */
 function appendLock(lockPath: string, entry: LockEntry): void {
   let lock: LockFile = { skills: [] };
   if (pathExistsSync(lockPath)) {
     lock = readJsonSync(lockPath) as LockFile;
   }
 
-  // INTENTIONAL: Remove previous entry with same name to prevent duplicates.
-  // For protocol bundles, this means only one tier can be active at a time.
-  // The installed tier (required/recommended/full) already includes all lower tiers,
-  // so having multiple bundles would be redundant.
+  // Remove previous entry with same name to prevent duplicates
   lock.skills = lock.skills.filter((s) => s.name !== entry.name);
 
   lock.skills.push(entry);
@@ -105,6 +110,51 @@ function resolveProtocolSkillName(tier: Exclude<ProtocolTier, 'custom'>): string
   return map[tier];
 }
 
+/**
+ * Remove old protocol bundle folders when installing a new tier.
+ * Only one protocol tier can be active at a time.
+ *
+ * @param targetDir - The skills directory to clean (e.g., .agents/skills)
+ * @param newBundleName - The bundle being installed (will NOT be removed)
+ * @returns Array of removed bundle names
+ */
+function cleanupOldProtocolBundles(
+  targetDir: string,
+  newBundleName: string
+): string[] {
+  const removed: string[] = [];
+  const bundleNames = [
+    'stackshift-protocols-required',
+    'stackshift-protocols-recommended',
+    'stackshift-protocols-full',
+    'stackshift-protocols-custom'
+  ];
+
+  for (const oldBundle of bundleNames) {
+    if (oldBundle !== newBundleName) {
+      const oldPath = join(targetDir, oldBundle);
+      if (pathExistsSync(oldPath)) {
+        try {
+          removeSync(oldPath);
+          removed.push(oldBundle);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(`Warning: Could not remove ${oldBundle}: ${message}`);
+        }
+      }
+    }
+  }
+
+  return removed;
+}
+
+/**
+ * Write .stackshift/installed.json marker for AI agent bootstrap.
+ *
+ * NOTE: This file is NOT the source of truth for installed skills.
+ * The CLI uses skills-lock.json for tier detection.
+ * This marker exists solely to tell the AI agent that bootstrap has run.
+ */
 function writeStackshiftMarker(
   choices: InstallChoices,
   allProtocols: ProtocolEntry[],
@@ -184,6 +234,9 @@ export function writeSelection(
 
     // Install protocol bundle
     if (choices.protocolTier === 'custom') {
+      // Clean up old bundles before installing custom
+      cleanupOldProtocolBundles(targetDir, 'stackshift-protocols-custom');
+
       buildCustomProtocolSkill(choices.customProtocols, allProtocols, targetDir);
       appendLock(lockPath, {
         name: 'stackshift-protocols-custom',
@@ -193,6 +246,10 @@ export function writeSelection(
       installed.push('stackshift-protocols-custom');
     } else {
       const bundleName = resolveProtocolSkillName(choices.protocolTier);
+
+      // Clean up old bundles before installing new tier
+      cleanupOldProtocolBundles(targetDir, bundleName);
+
       const bundleSkill = skills.find((s) => s.name === bundleName);
       if (bundleSkill) {
         copySkillFolder(bundleSkill.folderPath, targetDir);

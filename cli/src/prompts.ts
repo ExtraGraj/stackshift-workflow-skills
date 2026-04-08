@@ -1,4 +1,4 @@
-import { select, multiselect, confirm, isCancel, cancel } from '@clack/prompts';
+import { select, multiselect, confirm, isCancel, cancel, note } from '@clack/prompts';
 import type { ProtocolEntry, SkillEntry } from './registry.js';
 
 export type ProtocolTier = 'required' | 'recommended' | 'full' | 'custom';
@@ -29,9 +29,14 @@ export async function runPrompts(
 ): Promise<InstallChoices> {
   // If protocol bundle already installed, warn user about replacement
   if (existingBundle) {
+    const isCustom = existingBundle.name === 'stackshift-protocols-custom';
+    const tierName = existingBundle.name.replace('stackshift-protocols-', '');
+
     const shouldReplace = await confirm({
-      message: `Protocol tier already installed: ${existingBundle.name.replace('stackshift-protocols-', '')}\nReplace with a different tier?`,
-      initialValue: false,
+      message: isCustom
+        ? 'Custom protocol selection detected.\nReplace with a pre-built tier?'
+        : `Protocol tier already installed: ${tierName}\nReplace with a different tier?`,
+      initialValue: isCustom,
     });
 
     assertNotCancelled(shouldReplace);
@@ -41,6 +46,12 @@ export async function runPrompts(
       process.exit(0);
     }
   }
+
+  // Show that stackshift-core is always included
+  note(
+    'stackshift-core (workflow, protocols, references)',
+    'Required package — always included'
+  );
   const tierChoice = await select<ProtocolTier>({
     message: 'Select protocol tier:',
     options: [
