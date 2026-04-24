@@ -20,3 +20,6 @@ Quick lookup: which file does what in a StackShift project.
 | `components/sections/[name]/index.tsx` | Variant router + local props interface + props extraction |
 | `components/sections/[name]/variant_[x].tsx` | Custom variant implementation |
 | `components/list.tsx` | Section component registry — register new section types here |
+| `design/standards/stackshift-ui.md` | StackShift UI conventions for UI Forge's design-standards pipeline (seeded at bootstrap) |
+| `design/standards/brand.md` | Project brand document: voice, palette, typography, imagery (seeded at bootstrap when `brand` protocol is active) |
+| `.forgeignore` | UI Forge scan exclusions — Sanity + Next.js defaults written at bootstrap |

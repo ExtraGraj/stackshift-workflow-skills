@@ -155,23 +155,36 @@ After protocols are materialized, bridge the `variant-router` protocol (and any 
 
 ### 6a — Build the `designStandards` payload
 
-Scan the materialized protocols for component-rendering relevance. At minimum, include the `variant-router` protocol:
-
-```json
-{
-  "designStandards": {
-    "stackshiftVariantRouter": "./docs/protocol/variant-router.md"
-  }
-}
-```
-
-If additional component-rendering protocols exist in `/docs/protocol/_registry.json` (project) or `protocols/_registry.json` (skill), add them:
+Scan the materialized protocols for component-rendering relevance. At minimum, include the `variant-router` protocol. Use `design/standards/stackshift-ui.md` as the primary standards path if it exists (created in Step 6f below); fall back to the materialized protocol file for backwards compatibility with projects that pre-date v0.1.8.
 
 ```json
 {
   "designStandards": {
     "stackshiftVariantRouter": "./docs/protocol/variant-router.md",
-    "stackshiftComponentStandard": "./docs/protocol/<any-component-rendering-protocol>.md"
+    "stackshiftComponentStandard": "./design/standards/stackshift-ui.md"
+  }
+}
+```
+
+If `design/standards/stackshift-ui.md` does not exist (e.g. bootstrap was skipped or project pre-dates v0.1.8), fall back to:
+
+```json
+{
+  "designStandards": {
+    "stackshiftVariantRouter": "./docs/protocol/variant-router.md",
+    "stackshiftComponentStandard": "./docs/protocol/variant-router.md"
+  }
+}
+```
+
+If the `brand` protocol is in the materialized set, add it to the payload:
+
+```json
+{
+  "designStandards": {
+    "stackshiftVariantRouter": "./docs/protocol/variant-router.md",
+    "stackshiftComponentStandard": "./design/standards/stackshift-ui.md",
+    "brand": "./design/standards/brand.md"
   }
 }
 ```
@@ -282,6 +295,62 @@ After detecting `ui-forge`, read its `skill.version` file and compare against th
 
 **If compatible or not installed:** No action needed.
 
+### 6f — Seed `design/standards/`
+
+Create the `design/standards/` directory if it does not exist.
+
+**`design/standards/stackshift-ui.md`** (skip if file exists):
+
+Write this file with the StackShift-UI conventions UI Forge needs to read during generation:
+
+```markdown
+# StackShift UI — Component Standards
+
+These conventions apply to every variant generated in this project.
+
+## Import rules
+- Always import the props interface from `"."` (the section index file), never from `@stackshift-ui`.
+- Component library imports come from `@stackshift-ui/<section>`.
+
+## Null handling
+- Use `?? undefined` for every field extracted from `data?.variants`.
+- Return `null` when required props are absent — never render a broken state.
+- Use ternary guards (`{title ? <Heading title={title} /> : null}`) rather than `&&`.
+
+## Function structure
+- Default export: the main variant component.
+- Named export: re-export the function (`export { MySection_X }`).
+- Helper functions below all exports, not above.
+- Defaults in destructure signature, not inside the function body.
+
+## TypeScript
+- All props optional (`?`) — Sanity data can always be null/undefined.
+- No `any` types.
+- Prefer composing existing interfaces over defining new ones.
+```
+
+**`design/standards/brand.md`** (only if `brand` protocol is in the materialized set; skip if file exists):
+
+Write a starter brand document:
+
+```markdown
+# Brand Standards
+
+> Replace this starter with your project's actual brand guidelines.
+
+## Voice and tone
+[Describe writing register, formality, sentence structure guidelines]
+
+## Color palette
+[List named color roles: primary, secondary, neutral, accent — with usage rules]
+
+## Typography
+[Map heading levels to font / weight / size; describe body text defaults]
+
+## Imagery
+[Describe photography style, illustration tone, icon set restrictions]
+```
+
 ---
 
 ## Step 7 — Write the install marker
@@ -303,21 +372,35 @@ Create `<project>/.stackshift/installed.json`:
 
 **Note:** Seeds field is not included because seeds are not materialized to projects.
 
+**Accessibility marker:** If the `accessibility` protocol is in the materialized set, add `"a11yRequired": true` to the file. Absence means "not requested" — do not write the field at all when the protocol is not selected. UI Forge treats absence and `false` identically (no SIGNAL_A11Y).
+
+```json
+{
+  "skillVersion": "<read from skill.version>",
+  "installedAt": "<ISO timestamp>",
+  "mode": "recommended",
+  "protocols": [...],
+  "a11yRequired": true
+}
+```
+
 ### Canonical `installed.json` Shape
 
 The file can eventually hold additional fields written by the AI agent at bootstrap time. The full possible shape is:
 
 ```json
 {
-  "skillVersion": "0.1.7",
+  "skillVersion": "0.1.8",
   "installedAt": "2026-04-14T00:00:00Z",
   "mode": "recommended",
   "protocols": [
     { "id": "factory-function-pattern", "tier": "required", "file": "factory-function-pattern.md" }
   ],
+  "a11yRequired": true,
   "pendingDesignArchBridge": {
     "designStandards": {
-      "stackshiftVariantRouter": "./docs/protocol/variant-router.md"
+      "stackshiftVariantRouter": "./docs/protocol/variant-router.md",
+      "stackshiftComponentStandard": "./design/standards/stackshift-ui.md"
     }
   },
   "uiForgeIntegration": {
@@ -338,6 +421,7 @@ The file can eventually hold additional fields written by the AI agent at bootst
 | `installedAt` | CLI + bootstrap | Every install / repair |
 | `mode` | CLI + bootstrap | Every install / repair |
 | `protocols` | CLI + bootstrap | Every install / repair |
+| `a11yRequired` | AI agent (bootstrap Step 7) | When `accessibility` protocol is materialized |
 | `pendingDesignArchBridge` | AI agent (bootstrap Step 6b) | When `design/design-arch.json` is absent |
 | `uiForgeIntegration` | AI agent (bootstrap Step 6d) | After `ui-forge` detection |
 
@@ -350,17 +434,43 @@ This file is the source of truth for what has been installed. Future invocations
 
 ---
 
-## Step 8 — Report and return
+## Step 8 — Write `.forgeignore` defaults
+
+If `.forgeignore` already exists at the project root, do nothing — the file is user-authored and must not be overwritten.
+
+If it does not exist, create it with Sanity + Next.js defaults:
+
+```
+# StackShift — Sanity + Next.js defaults
+studio/
+.sanity/
+.next/
+dist/
+build/
+out/
+coverage/
+```
+
+This prevents UI Forge's `scan.js` from walking build artifacts, Sanity Studio internals, and output directories during project scanning. User edits to this file always take precedence — UI Forge's ignore-file resolution gives `.forgeignore` the highest project-level priority.
+
+**Field ownership note:** `.forgeignore` is written once during bootstrap. It is never overwritten on subsequent invocations.
+
+---
+
+## Step 9 — Report and return
 
 Print a summary:
 
 ```
 Bootstrapped StackShift skill (mode: recommended)
-  /docs/protocol/           ← 9 protocols (4 required, 5 recommended)
+  /docs/protocol/           ← [N] protocols ([r] required, [rec] recommended)
   /docs/protocol/_registry.json  ← Project protocol registry (empty)
   /docs/protocol/_template/ ← Complex protocol template
   /docs/references/         ← Custom reference lookups (empty)
+  design/standards/         ← stackshift-ui.md [+ brand.md if brand protocol]
+  .forgeignore              ← [written / already exists]
   .stackshift/installed.json written
+  a11yRequired: [true / not set]
 
 ui-forge integration: [detected / not found]
   design/design-arch.json:  [bridged / pending / N/A]

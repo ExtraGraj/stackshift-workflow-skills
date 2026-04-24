@@ -1,6 +1,6 @@
 # StackShift Skill
 
-> **Version** 0.1.7 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
+> **Version** 0.1.8 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
 
 A structured agentic skill for building sections and variants inside StackShift, a composable Sanity v3 and Next.js page-builder. Enforces a strict 5-step implementation workflow, governs quality through a tiered protocol system, and delegates component rendering to the `ui-forge` companion skill.
 
@@ -223,7 +223,7 @@ A tiered protocol system codifies team conventions and enables individual loadin
 
 ## Protocols
 
-All 9 registered protocols, organized by tier:
+All 11 registered protocols, organized by tier:
 
 | Protocol | Tier | Applies to | Description |
 |----------|------|-----------|-------------|
@@ -236,6 +236,8 @@ All 9 registered protocols, organized by tier:
 | Preview Conventions | recommended | Step 1 | `preview` block with `prepare()` on array-of-objects and object fields. |
 | Array Layout | recommended | Step 1 | `grid` for image arrays, `tags` for string arrays, `collapsible` for nav arrays. |
 | Section Directory Layout | recommended | Step 2 | `initialValue/` with placeholder copy and `images/` with variant thumbnails. |
+| Accessibility | recommended | Step 4 | WCAG 2.1 AA enforcement via UI Forge's `SIGNAL_A11Y`. Writes `a11yRequired: true` to bootstrap marker. |
+| Brand | optional | Step 4 | Registers a project brand document so UI Forge applies voice, palette, typography, and imagery rules via `SIGNAL_BRAND`. |
 
 ---
 
@@ -314,7 +316,12 @@ After bootstrap with "Recommended" mode:
 ```
 your-project/
 ├── .stackshift/
-│   └── installed.json          # Bootstrap marker (mode, protocols, timestamp)
+│   └── installed.json          # Bootstrap marker (mode, protocols, timestamp, a11yRequired)
+├── .forgeignore                # Sanity + Next.js scan exclusions (written by bootstrap)
+│
+├── design/
+│   └── standards/
+│       └── stackshift-ui.md   # StackShift UI conventions for UI Forge
 │
 └── docs/
     ├── protocol/
@@ -328,7 +335,8 @@ your-project/
     │   ├── hide-if-variant.md
     │   ├── preview-conventions.md
     │   ├── array-layout.md
-    │   └── section-directory-layout.md
+    │   ├── section-directory-layout.md
+    │   └── accessibility.md
     │
     └── references/             # Custom reference lookups (empty initially)
         └── README.md
@@ -445,7 +453,7 @@ stackshift-workflow-skills/
 │   │   ├── workflow/             # 5 step files and checklist (loaded on demand)
 │   │   ├── protocols/            # 9 protocol files and _registry.json
 │   │   ├── references/           # Lookup tables (field factories, GROQ, types, versions)
-│   │   ├── seeds/                # Seeding strategies and _registry.json (empty in v0.1.7)
+│   │   ├── seeds/                # Seeding strategies and _registry.json (empty in v0.1.8)
 │   │   └── bootstrap/            # First-run install flow and modes
 │   │
 │   ├── stackshift-protocols-required/
@@ -501,6 +509,7 @@ During component variant creation, StackShift delegates to `ui-forge` once schem
 | TypeScript | strict mode |
 | `@webriq-pagebuilder/sanity-plugin-schema-default` | extend, do not replace |
 | `@stackshift-ui/*` | component library, referenced in `index.tsx` only |
+| `ui-forge` (companion skill) | ≥0.1.8 for full feature set (see `references/versions.md`) |
 
 For complete compatibility matrix including peer dependencies, see `references/versions.md` in the skill.
 

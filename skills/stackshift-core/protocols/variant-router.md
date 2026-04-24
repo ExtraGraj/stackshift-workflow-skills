@@ -30,6 +30,7 @@ const Variants = {
   variant_e: dynamic(() => import("./variant_e")),
 };
 
+/** @contract-version 1.0.0 */
 export interface MySectionProps {
   title?: string;
   description?: string;

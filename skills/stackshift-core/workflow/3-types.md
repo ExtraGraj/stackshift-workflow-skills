@@ -33,6 +33,18 @@ export interface MyFieldTypes {
 }
 ```
 
+When creating the **section props interface** (the one exported from `index.tsx` and consumed by UI Forge), add a `@contract-version` JSDoc tag:
+
+```typescript
+/** @contract-version 1.0.0 */
+export interface MySectionProps {
+  title?: string;
+  description?: string;
+}
+```
+
+This tag is parsed by UI Forge and included in the CONTRACT header of generated output, creating an auditable record of which contract version a variant was generated against. The current contract version is `1.0.0` — see `references/versions.md` for when and how to bump it.
+
 Rules:
 - **No `any`.** Use `unknown` + narrowing if the shape is dynamic.
 - All fields optional (`?`) — Sanity data can always be null/undefined.

@@ -24,3 +24,4 @@ Protocol files live in `stackshift-core/protocols/`. Load on demand — never al
 | Preview Conventions | `protocols/preview-conventions.md` | Any array of objects or object field (Step 1) |
 | Array Layout | `protocols/array-layout.md` | Any array field (Step 1) |
 | Section Directory Layout | `protocols/section-directory-layout.md` | After finalizing section schema (Step 2) |
+| Accessibility | `protocols/accessibility.md` | Activates WCAG 2.1 AA enforcement in UI Forge (Step 4) |

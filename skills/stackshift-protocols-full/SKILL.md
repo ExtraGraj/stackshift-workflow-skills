@@ -1,6 +1,6 @@
 ---
 name: stackshift-protocols-full
-description: All StackShift protocols — required, recommended, and optional (currently no optional protocols registered)
+description: All StackShift protocols — required, recommended, and optional
 tags: [stackshift, protocols]
 recommended: false
 type: protocols-bundle
@@ -13,10 +13,6 @@ requires: stackshift-core
 Requires `stackshift-core` to be installed alongside this skill.
 Protocol files live in `stackshift-core/protocols/`. Load on demand — never all at once.
 
-> No optional protocols are registered yet. This bundle is currently identical to
-> `stackshift-protocols-recommended`. When optional protocols are added to
-> `stackshift-core/protocols/_registry.json`, they will appear here.
-
 | Protocol | Tier | File in core | Load when |
 |---|---|---|---|
 | Factory Function Pattern | required | `protocols/factory-function-pattern.md` | Creating any new field (Step 1) |
@@ -28,3 +24,5 @@ Protocol files live in `stackshift-core/protocols/`. Load on demand — never al
 | Preview Conventions | recommended | `protocols/preview-conventions.md` | Any array of objects or object field (Step 1) |
 | Array Layout | recommended | `protocols/array-layout.md` | Any array field (Step 1) |
 | Section Directory Layout | recommended | `protocols/section-directory-layout.md` | After finalizing section schema (Step 2) |
+| Accessibility | recommended | `protocols/accessibility.md` | Activates WCAG 2.1 AA enforcement in UI Forge (Step 4) |
+| Brand | optional | `protocols/brand.md` | Registers a project brand document for UI Forge's brand signal (Step 4) |

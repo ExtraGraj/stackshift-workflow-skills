@@ -69,6 +69,20 @@
       "file": "section-directory-layout.md",
       "title": "Section Directory Layout",
       "summary": "initialValue/ and images/ directories for placeholder content and variant thumbnails. No errors if omitted — just poor author onboarding."
+    },
+    {
+      "id": "accessibility",
+      "tier": "recommended",
+      "file": "accessibility.md",
+      "title": "Accessibility",
+      "summary": "WCAG 2.1 AA enforcement. When installed, UI Forge generates variants with semantic HTML, accessible names, focus visibility, and reduced-motion handling."
+    },
+    {
+      "id": "brand",
+      "tier": "optional",
+      "file": "brand.md",
+      "title": "Brand",
+      "summary": "Registers a project brand document so UI Forge applies voice, palette, typography, and imagery rules during variant generation."
     }
   ]
 }
