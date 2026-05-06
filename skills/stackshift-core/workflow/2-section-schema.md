@@ -94,11 +94,19 @@ Then customize inside your local `schemas/custom/` tree.
 
 ---
 
+## Seed gate — required before writing any `initialValue/` file
+
+> Skip this gate entirely if the current task does not touch `initialValue/`.
+
+Check `.stackshift/installed.json` for a `seed` field:
+
+- **Present** → look up the matching entry in `seeds/_registry.json` by `id`, load `seeds/<file>`, and follow its strategy. **Do not write any `initialValue/` file before loading.**
+- **Absent** → no active seeding strategy. Proceed without one.
+
+---
+
 ## Recommended actions
 
-- **Check active seed strategy** — Read `.stackshift/installed.json` for a `seed` field.
-  If present, look up the id in `seeds/_registry.json` and load the matching `seeds/<file>`.
-  Follow its strategy before writing any `initialValue/` file.
 - **Populate `initialValue/`** with placeholder content for every variant. Empty forms are a poor author experience. → `section-directory-layout`
 - **Populate `images/`** with one preview thumbnail per variant, named to match the variant's `value`. → `section-directory-layout`
 

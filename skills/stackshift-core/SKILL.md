@@ -97,7 +97,7 @@ The implementation order is **strict**. Each step must complete before the next 
 | 4 | Component variant | `workflow/4-variants.md` → **invokes `ui-forge`** | `components/sections/[name]/` |
 | 5 | GROQ query | `workflow/5-groq.md` | `pages/api/query.ts` |
 
-**Load only the step you are on.** Do not pre-load all steps.
+**Execute only the step you are on.** Step ordering is enforced by instruction — begin with the step that matches current context and do not advance until it is complete.
 
 After Step 5 completes, run `workflow/checklist.md` as a final verification pass (not a 6th workflow step).
 
@@ -126,9 +126,9 @@ Before invoking `ui-forge`, the StackShift workflow must have already:
 
 ---
 
-## 3. Lookup router — load on demand
+## 3. Lookup router
 
-Do not load these preemptively. Load only when the current workflow step or error mentions the topic.
+Use this table to find the right file when the current workflow step or an error mentions a topic. Load a file only when you need it — but step ordering is governed by instruction, not by which files are in context.
 
 | Need | Load |
 |------|------|

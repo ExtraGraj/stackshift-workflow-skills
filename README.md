@@ -1,6 +1,6 @@
 # StackShift Skill
 
-> **Version** 0.2.1 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
+> **Version** 0.2.2 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
 
 A structured agentic skill for building sections and variants inside StackShift, a composable Sanity v3 and Next.js page-builder. Enforces a strict 5-step implementation workflow, governs quality through a tiered protocol system, supports seed strategies, and delegates component rendering to the `ui-forge` companion skill.
 
@@ -222,16 +222,16 @@ StackShift sections follow a predictable anatomy: a Sanity schema defining field
 
 Each step produces output required by the subsequent step. The skill enforces this sequence without exception, as reordering introduces broken imports, type errors, and mismatched GROQ projections.
 
-### On-Demand Loading Architecture
+### Lookup-Table Architecture
 
-The skill employs on-demand loading to maintain focused interactions and optimize token usage:
+The skill uses a lookup-table structure to keep context focused:
 
-- **Core router** (`SKILL.md`) maintains a compact workflow table, lookup table for reference files, and hard rules
-- **Workflow steps** load individually; a session on Step 1 never loads Step 5
-- **Protocols** load only when needed; irrelevant protocols remain unloaded
-- **References** (field factories, GROQ fragments, type catalogs) are fetched on demand via lookup table
+- **Core router** (`SKILL.md`) contains the workflow table, a topic-to-file lookup table, and hard rules
+- **Workflow steps** are stored in individual files; the router table directs the agent to load only the relevant step
+- **Protocols** are discovered via merged registries and loaded on demand when a step or error references them
+- **References** (field factories, GROQ fragments, type catalogs) are accessed through the lookup table in Section 3
 
-This architecture ensures AI interactions remain focused on current tasks with minimal token overhead.
+Step ordering is enforced by instruction: the agent executes only the step that matches the current context and does not advance until it is complete.
 
 ### Protocol System
 
@@ -283,7 +283,7 @@ All 15 registered protocols, organized by tier:
 
 A seeding strategy is a reusable instruction set that guides the AI in populating or scaffolding a specific aspect of a StackShift project. Strategies are scoped to particular workflow steps and output areas.
 
-The active strategy is recorded in `.stackshift/installed.json` → `seed` and loaded by the AI when it reaches the relevant step. **Only one strategy may be active at a time.** Running `init` again replaces it; running `repair` resolves accidental multi-seed installs.
+The active strategy is recorded in `.stackshift/installed.json` → `seed`. When the AI reaches a step that writes files covered by the active strategy, it checks for the `seed` field and loads the strategy as a **required gate** before writing — no verbal instruction needed. **Only one strategy may be active at a time.** Running `init` again replaces it; running `repair` resolves accidental multi-seed installs.
 
 ### Available Seed Strategies
 

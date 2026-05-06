@@ -25,6 +25,20 @@
 
 Strict sub-step order: **4a → 4b → 4c → 4d**. Do not reorder.
 
+---
+
+## Modification vs. Full Generation
+
+Determine the invocation mode before starting 4a.
+
+| Task type | Mode | Required flags |
+|-----------|------|----------------|
+| New variant (no stub exists) | full (default) | `--task`, `--refs` |
+| Fix or rebuild an existing variant | `--mode body-only` | `--task`, `--refs` (HTML ref required) |
+| Append content to an existing body | `--mode body-only` | `--task`, `--refs` |
+
+**FORGE NOTES header and all postcondition checks are required in both modes.** Fix/rebuild tasks are not exempt from structural validation or the contract check.
+
 > **Paired-mode constraints.** UI Forge refuses the following flags when invoked in paired mode (StackShift as caller): `--creative`, `--diff`, `--preview`. The contract-first handoff and these modes are mutually exclusive by design. For iterative regeneration of a completed variant, run UI Forge standalone with `--diff` outside the StackShift workflow — the output path is the only thing that matters, and the result will replace the variant file in place.
 >
 > See `protocols/paired-mode-contract.md` for the full refusal matrix, modifier composition rules, marker fields, and the contract version handshake.
@@ -138,6 +152,20 @@ All of the following must be true before calling `ui-forge`. If any check fails,
 - [ ] `types.ts` contains the props interface for this variant (completed in Step 3)
 - [ ] `design/design-arch.json` exists at project root — **if missing, run `ui-forge`'s `scan.js` first** (see "Missing `design-arch.json`" in Failure Modes below)
 - [ ] `design/design-arch.json` `.designStandards` includes a reference to the materialized `variant-router` protocol (written by bootstrap — see `bootstrap/install.md`)
+
+### Anti-Slop Fidelity Check
+
+**Run this check when any `--refs` file is an HTML or TSX file.** Before writing output, confirm each point from the reference HTML/TSX:
+
+- [ ] Padding/margin values — map to exact Tailwind equivalents; do not approximate
+- [ ] Background — dark (`bg-foreground`) vs. light (`bg-background`); verify which applies
+- [ ] Decorative elements — patterns, overlays, watermarks — confirm present or absent in reference
+- [ ] Icon container — size, background colour, border-radius match reference exactly
+- [ ] Button/CTA style — underline, filled, or outlined; match reference exactly
+
+Report each finding in the FORGE NOTES block before writing TSX.
+
+---
 
 ### `${UI_FORGE_SKILL_DIR}` Resolution
 
@@ -253,7 +281,7 @@ See `protocols/claude-design-handoff.md` and `references/claude-design-roundtrip
 |----------|----------|-----|
 | `.ts`/`.tsx` file containing the exported props interface | **Required** | Contract that `ui-forge` must conform to |
 | `initialValue/` directory contents | **Recommended** | Gives `ui-forge` realistic placeholder copy |
-| `images/<variant>.png` thumbnail | **Recommended** | Vision-based layout hints if present |
+| `images/<variant>.png` thumbnail | **Recommended** | Vision-based layout hints if present — must be passed as `--refs path/to/image.png`; do not rely on AI vision context alone. The `+IMAGE` modifier only fires when an image file appears in `--refs`. |
 | Claude Design handoff URL via `--handoff <url>` | **Permitted** when `claude-design-handoff` protocol is active | Layout authority — handoff wins for visual spec; `design-arch.json` wins for tokens. Mutually exclusive with HTML/TSX layout refs. |
 | Section schema file | **Never** | StackShift territory — confuses signal detection |
 | GROQ query file (`pages/api/query.ts`) | **Never** | StackShift territory — confuses signal detection |
