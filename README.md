@@ -1,6 +1,6 @@
 # StackShift Skill
 
-> **Version** 0.2.0 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
+> **Version** 0.2.1 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
 
 A structured agentic skill for building sections and variants inside StackShift, a composable Sanity v3 and Next.js page-builder. Enforces a strict 5-step implementation workflow, governs quality through a tiered protocol system, supports seed strategies, and delegates component rendering to the `ui-forge` companion skill.
 
@@ -12,10 +12,13 @@ Two installation methods are available: **`npx skills add`** for quick direct in
 
 ### Platform Overview
 
-| Platform | Install path | Skill discovery | Examples |
-|---|---|---|---|
-| Universal agents | `.agents/skills/` | Platform-specific | Amp, Cline, Codex, Cursor, DeepSeek, Gemini CLI, GitHub Copilot, Warp, and more |
-| Claude Code | `.claude/skills/` | SKILL.md frontmatter (auto-trigger) | — |
+| Platform | Project skill root | Global skill root |
+|---|---|---|
+| Claude Code | `.claude/skills/` | `~/.claude/skills/` |
+| GitHub Copilot (Agent Mode) | `.github/skills/` | `~/.copilot/skills/` |
+| OpenAI Codex / Universal Agents | `.agents/skills/` | `~/.agents/skills/` |
+| Google Gemini (Antigravity) | `.agents/skills/` | `~/.gemini/antigravity/skills/` |
+| Cursor IDE | `.cursor/skills/` | `~/.cursor/skills/` |
 
 ---
 
@@ -94,6 +97,12 @@ npx @extragraj/stackshift-skills init --tier full --scope project --platform age
 
 # Non-interactive with seed strategy
 npx @extragraj/stackshift-skills init --seed initialvalue-seeding --no-interactive
+
+# Interactive with bootstrap materialization (prompts, then materializes protocols)
+npx @extragraj/stackshift-skills init --bootstrap
+
+# Non-interactive with bootstrap materialization
+npx @extragraj/stackshift-skills init --tier recommended --bootstrap --no-interactive
 ```
 
 **Available Flags:**
@@ -102,8 +111,9 @@ npx @extragraj/stackshift-skills init --seed initialvalue-seeding --no-interacti
 |------|--------|---------|-------------|
 | `--tier` | `required`, `recommended`, `full` | `recommended` | Protocol tier to install |
 | `--scope` | `project`, `global` | `project` | Install location |
-| `--platform` | `agents`, `claude`, or comma-separated | `agents` | Platform(s) to install to |
+| `--platform` | `agents`, `claude`, `copilot`, `gemini`, `cursor`, or comma-separated | `agents` | Platform(s) to install to |
 | `--seed` | seed id or `none` | `none` | Seeding strategy to activate (e.g. `initialvalue-seeding`) |
+| `--bootstrap` | (flag) | `false` | Run protocol materialization after install — works with or without `--no-interactive`. Copies protocols to `.stackshift/protocol/`, creates references and design standards. |
 | `--no-interactive` | (flag) | `false` | Skip prompts, use flags + defaults |
 | `--help` | (flag) | - | Show help text |
 
@@ -172,15 +182,17 @@ After installing via Option A or B:
    - Updates lock files across all platforms
 
 3. **Bootstrap marker** (`.stackshift/installed.json`) is written (project scope only)
+   - Without `--bootstrap`: marker includes `"bootstrapRequired": true` — AI agent runs full interactive bootstrap on first invocation
+   - With `--bootstrap`: CLI materializes protocols directly; marker has no `bootstrapRequired`
 
 4. **AI agent validation** on first invocation:
    - Checks for multiple protocol bundles (Option A safety check)
    - Validates `stackshift-core` presence
    - If issues found, suggests running `npx @extragraj/stackshift-skills repair`
 
-5. **Bootstrap runs** on first AI invocation (after validation passes):
-   - **Project scope:** Uses recorded tier selection, materializes protocols to `/docs/` (no prompts)
-   - **Global scope:** Prompts for install mode in each new project, then materializes protocols
+5. **Bootstrap runs** when `bootstrapRequired: true` is detected or marker is absent:
+   - **With `--bootstrap`:** CLI handles protocol files, design standards, and `.forgeignore`. UI Forge integration steps still require the agent.
+   - **Without `--bootstrap`:** Agent runs full interactive bootstrap including UI Forge detection, scan, and hook installation
 
 #### Installation Method Comparison
 
@@ -193,7 +205,8 @@ After installing via Option A or B:
 | **Multi-tier prevention** | No | Yes |
 | **Multi-seed prevention** | No (use `repair`) | Yes |
 | **Automation support** | Limited | Full (`--no-interactive`) |
-| **Platforms supported** | `agents`, `claude` | `agents`, `claude` |
+| **Platforms supported** | `agents`, `claude` | `agents`, `claude`, `copilot`, `gemini`, `cursor` |
+| **Bootstrap materialization** | No (agent only) | Optional (`--bootstrap` flag) |
 
 **Note:** The `ui-forge` companion skill must be installed independently; StackShift bootstrap will detect and integrate it automatically when present.
 
@@ -268,7 +281,7 @@ All 15 registered protocols, organized by tier:
 
 ## Seeding Strategies
 
-A seeding strategy is a reusable instruction set that guides the AI in populating or scaffolding a specific aspect of a StackShift project. Strategies are scoped to particular workflow steps and output areas — one strategy may address placeholder content, another may target schema field patterns, type shapes, or GROQ fragments.
+A seeding strategy is a reusable instruction set that guides the AI in populating or scaffolding a specific aspect of a StackShift project. Strategies are scoped to particular workflow steps and output areas.
 
 The active strategy is recorded in `.stackshift/installed.json` → `seed` and loaded by the AI when it reaches the relevant step. **Only one strategy may be active at a time.** Running `init` again replaces it; running `repair` resolves accidental multi-seed installs.
 
@@ -305,7 +318,9 @@ npx @extragraj/stackshift-skills init --seed none --no-interactive
 
 ## Bootstrap
 
-Bootstrap executes once on first AI invocation when `.stackshift/installed.json` is absent in the project root. It materializes selected protocols and creates project infrastructure (_registry.json, _template/, references/) to enable protocol customization and extension.
+Bootstrap executes once on first AI invocation when `.stackshift/installed.json` is absent or contains `"bootstrapRequired": true`. It materializes selected protocols and creates project infrastructure under `.stackshift/` to enable protocol customization and extension.
+
+The CLI's `--bootstrap` flag runs the file-system portions non-interactively. UI Forge integration steps (scan, design bridge, PostToolUse hook) always require the AI agent.
 
 When UI Forge is detected, bootstrap also wires up the StackShift ↔ UI Forge handshake:
 
@@ -330,10 +345,10 @@ When UI Forge is detected, bootstrap also wires up the StackShift ↔ UI Forge h
 
 | Mode | Materialized Content |
 |------|---------------------|
-| **None** | Nothing. `/docs/` remains empty. Skill falls back to bundled copies at lookup. |
+| **None** | Nothing. Skill falls back to bundled copies at lookup. |
 | **Required** | All `tier: required` protocols only. Minimal customizable surface. |
 | **Recommended** (default) | All required and recommended protocols. Standard baseline. |
-| **All** | All registered protocols and seeds, including optional. |
+| **All** | All registered protocols including optional. |
 | **Interactive** | Checkbox prompt with required and recommended pre-selected, optional unchecked. |
 
 ### Project Customization Mechanism
@@ -342,13 +357,13 @@ After bootstrap completion:
 
 1. **Protocol lookup priority:**
    ```
-   /docs/protocol/<id>.md (project) → protocols/<id>.md (skill fallback)
-   /docs/protocol/<id>/ (project) → protocols/<id>/ (skill fallback)
+   .stackshift/protocol/<id>.md (project) → protocols/<id>.md (skill fallback)
+   .stackshift/protocol/<id>/ (project)   → protocols/<id>/ (skill fallback)
    ```
 
 2. Project copies take precedence over bundled skill copies at every lookup
 3. Edits persist across skill updates; customizations are never overwritten
-4. Deleting a file from `/docs/protocol/` falls back to bundled default
+4. Deleting a file from `.stackshift/protocol/` falls back to bundled default
 
 This design enables teams to version protocols alongside their codebase while benefiting from skill updates to workflow and references.
 
@@ -356,17 +371,17 @@ This design enables teams to version protocols alongside their codebase while be
 
 ## Customizing Protocols
 
-After bootstrap, protocols can be customized and extended by editing files in `/docs/protocol/` and adding custom protocols to the project registry.
+After bootstrap, protocols can be customized and extended by editing files in `.stackshift/protocol/` and adding custom protocols to the project registry.
 
 ### What Can Be Extended
 
-**Protocols** (`/docs/protocol/`)
-- Edit materialized protocols from bootstrap  (project copy takes precedence)
+**Protocols** (`.stackshift/protocol/`)
+- Edit materialized protocols from bootstrap (project copy takes precedence at lookup)
 - Add custom project-specific protocols
-- Register custom protocols in `/docs/protocol/_registry.json`
-- Custom protocols are discovered from project registry
+- Register custom protocols in `.stackshift/protocol/_registry.json`
+- Custom protocols are discovered from the project registry
 
-**References** (`/docs/references/`)
+**References** (`.stackshift/references/`)
 - Add custom reference lookups for project-specific protocols
 - Augment skill references with project-specific data
 - Empty by default; add as needed
@@ -389,43 +404,42 @@ After bootstrap with "Recommended" mode:
 ```
 your-project/
 ├── .stackshift/
-│   └── installed.json          # Bootstrap marker (mode, protocols, seed, skillVersion, installedAt, a11yRequired, uiForgeIntegration)
+│   ├── installed.json          # Bootstrap marker (mode, protocols, seed, skillVersion, installedAt, a11yRequired, uiForgeIntegration)
+│   ├── protocol/
+│   │   ├── _registry.json      # Project protocol registry (custom protocols)
+│   │   ├── _template/          # Template for complex multi-file protocols
+│   │   ├── factory-function-pattern.md
+│   │   ├── sub-field-visibility.md
+│   │   ├── variant-router.md
+│   │   ├── one-time-custom-schema-setup.md
+│   │   ├── field-reuse-first.md
+│   │   ├── hide-if-variant.md
+│   │   ├── preview-conventions.md
+│   │   ├── array-layout.md
+│   │   ├── section-directory-layout.md
+│   │   ├── accessibility.md
+│   │   └── paired-mode-contract.md
+│   │
+│   └── references/             # Custom reference lookups (empty initially)
+│       └── README.md
+│
 ├── .forgeignore                # Sanity + Next.js scan exclusions (incl. design/.handoff-cache/, design/claude-design-bundle/)
 ├── .claude/
 │   └── settings.json           # PostToolUse hook entry (only when auto-verify-hook protocol is active)
 │
-├── design/
-│   ├── design-arch.json        # UI Forge-owned; StackShift writes designStandards.* + optional _paired mirror block
-│   └── standards/
-│       └── stackshift-ui.md   # StackShift UI conventions for UI Forge
-│
-└── docs/
-    ├── protocol/
-    │   ├── _registry.json      # Project protocol registry (custom protocols)
-    │   ├── _template/          # Template for complex multi-file protocols
-    │   ├── factory-function-pattern.md
-    │   ├── sub-field-visibility.md
-    │   ├── variant-router.md
-    │   ├── one-time-custom-schema-setup.md
-    │   ├── field-reuse-first.md
-    │   ├── hide-if-variant.md
-    │   ├── preview-conventions.md
-    │   ├── array-layout.md
-    │   ├── section-directory-layout.md
-    │   ├── accessibility.md
-    │   └── paired-mode-contract.md
-    │
-    └── references/             # Custom reference lookups (empty initially)
-        └── README.md
+└── design/
+    ├── design-arch.json        # UI Forge-owned; StackShift writes designStandards.* + optional _paired mirror block
+    └── standards/
+        └── stackshift-ui.md   # StackShift UI conventions for UI Forge
 ```
 
-**Optional protocols** (`brand`, `claude-design-handoff`, `auto-verify-hook`) materialize to `/docs/protocol/` only when the `Full` or `Interactive` install mode selects them.
+**Optional protocols** (`brand`, `claude-design-handoff`, `auto-verify-hook`) materialize to `.stackshift/protocol/` only when the `Full` or `Interactive` install mode selects them.
 
 ### Adding Custom Protocols
 
 #### Simple Single-File Protocol
 
-1. Create `/docs/protocol/custom-image-sizing.md`:
+1. Create `.stackshift/protocol/custom-image-sizing.md`:
    ```markdown
    # Custom Image Sizing Protocol
 
@@ -439,7 +453,7 @@ your-project/
    [Your convention details]
    ```
 
-2. Register in `/docs/protocol/_registry.json`:
+2. Register in `.stackshift/protocol/_registry.json`:
    ```json
    {
      "protocols": [
@@ -460,15 +474,15 @@ your-project/
 
 For protocols requiring multiple files, examples, or sub-documentation:
 
-1. Copy template: `cp -r docs/protocol/_template/ docs/protocol/custom-protocol/`
+1. Copy template: `cp -r .stackshift/protocol/_template/ .stackshift/protocol/custom-protocol/`
 
-2. Edit files in `/docs/protocol/custom-protocol/`:
-   - `SKILL.md` - Main entry point
+2. Edit files in `.stackshift/protocol/custom-protocol/`:
+   - `overview.md` - Main entry point
    - `architecture.md` - Architecture decisions
    - `checklist.md` - Done-when criteria
    - Add additional files as needed
 
-3. Register in `/docs/protocol/_registry.json`:
+3. Register in `.stackshift/protocol/_registry.json`:
    ```json
    {
      "protocols": [
@@ -487,7 +501,7 @@ For protocols requiring multiple files, examples, or sub-documentation:
 
 For custom protocols that need lookup tables:
 
-1. Create `/docs/references/custom-lookups.md`:
+1. Create `.stackshift/references/custom-lookups.md`:
    ```markdown
    # Custom Lookups
 
@@ -501,7 +515,7 @@ For custom protocols that need lookup tables:
 
 2. Reference from your custom protocol:
    ```markdown
-   See `/docs/references/custom-lookups.md` for standard image sizes.
+   See `.stackshift/references/custom-lookups.md` for standard image sizes.
    ```
 
 Custom references augment skill references without modifying them.

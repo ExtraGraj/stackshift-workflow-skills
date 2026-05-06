@@ -4,18 +4,20 @@
  * - .stackshift/installed.json: SOURCE OF TRUTH for protocol tier selection
  *   Location: .stackshift/installed.json (project root)
  *   Purpose: Records which tier was selected (mode: required/recommended/all/interactive)
+ *            CLI sets bootstrapRequired: true on fresh installs so the agent runs bootstrap.
+ *            CLI with --bootstrap materializes protocols itself (no bootstrapRequired written).
  *   Updated: On every install or repair to keep tier selection current
  *   Used by: AI agent for bootstrap, CLI for detecting tier changes
  *   Scope: Project-scope installs only (not global)
  *
  * - skills-lock.json: Installation record per platform
- *   Location: .agents/skills-lock.json or .claude/skills-lock.json (one per platform)
+ *   Location: <platform-dir>/skills-lock.json (one per platform)
  *   Purpose: Tracks which skills are physically installed on each platform
  *   Updated: On every install to each platform
  *   Used by: CLI for detecting existing installations
  *
  * Tier change detection:
- *   - Reads both .agents/skills-lock.json and .claude/skills-lock.json
+ *   - Reads skills-lock.json for all supported platforms
  *   - Finds entries starting with "stackshift-protocols-"
  *   - Returns first found, warns if different across platforms
  *
@@ -33,26 +35,36 @@ import fsExtra from 'fs-extra';
 const { pathExistsSync, readJsonSync } = fsExtra;
 import { loadSkills, loadProtocolRegistry } from './registry.js';
 import { runPrompts } from './prompts.js';
-import { writeSelection } from './writer.js';
+import { writeSelection, runBootstrapMaterialization } from './writer.js';
 import { parseFlags, validateFlags, hasRequiredFlags, showHelp } from './flags.js';
 import type { Platform, InstallChoices } from './prompts.js';
 
+const PLATFORM_PROJECT_DIR: Record<Platform, string> = {
+  claude: '.claude',
+  agents: '.agents',
+  copilot: '.github',
+  gemini: '.agents',
+  cursor: '.cursor',
+};
+
 function resolveTargetDir(scope: 'project' | 'global', platform: Platform): string {
-  const baseDir = platform === 'agents' ? '.agents' : '.claude';
+  const baseDir = PLATFORM_PROJECT_DIR[platform];
   if (scope === 'global') return join(homedir(), baseDir, 'skills');
   return join(process.cwd(), baseDir, 'skills');
 }
 
 /**
  * Verify that stackshift-core landed on disk for each platform in the install results.
- * If any platform is missing the core skill, installation silently failed — error out.
  */
 function validateWriteResults(
   choices: InstallChoices,
   results: Array<{ platform: Platform; skills: string[] }>,
 ): void {
+  const seenDirs = new Set<string>();
   for (const result of results) {
     const targetDir = resolveTargetDir(choices.scope, result.platform);
+    if (seenDirs.has(targetDir)) continue;
+    seenDirs.add(targetDir);
     const coreDir = join(targetDir, 'stackshift-core');
     if (!pathExistsSync(coreDir)) {
       console.error(
@@ -66,7 +78,6 @@ function validateWriteResults(
 
 /**
  * Emit a note when extra platforms were synced beyond what the user selected.
- * Happens when StackShift is already installed on a platform the user didn't pick.
  */
 function reportCrossPlatformSync(
   choices: InstallChoices,
@@ -78,9 +89,11 @@ function reportCrossPlatformSync(
 
   if (extraPlatforms.length === 0) return;
 
-  const labels = extraPlatforms
-    .map((p) => p === 'agents' ? '.agents/' : '.claude/')
-    .join(', ');
+  const dirMap: Record<Platform, string> = {
+    claude: '.claude/', agents: '.agents/', copilot: '.github/',
+    gemini: '.agents/ (gemini)', cursor: '.cursor/',
+  };
+  const labels = extraPlatforms.map((p) => dirMap[p]).join(', ');
 
   note(
     `Also synced: ${labels}\n` +
@@ -110,8 +123,8 @@ function readExistingSeed(): string | undefined {
   }
 }
 
-function readLockFile(scope: 'project' | 'global', platform: 'agents' | 'claude'): LockFile | null {
-  const baseDir = platform === 'agents' ? '.agents' : '.claude';
+function readLockFile(scope: 'project' | 'global', platform: Platform): LockFile | null {
+  const baseDir = PLATFORM_PROJECT_DIR[platform];
   const lockPath = scope === 'global'
     ? join(homedir(), baseDir, 'skills-lock.json')
     : join(process.cwd(), baseDir, 'skills-lock.json');
@@ -125,7 +138,6 @@ function readLockFile(scope: 'project' | 'global', platform: 'agents' | 'claude'
 }
 
 export async function install(): Promise<void> {
-  // Check for flags (arguments after 'init' command)
   const args = process.argv.slice(3);
   const flags = parseFlags(args);
 
@@ -134,13 +146,11 @@ export async function install(): Promise<void> {
     process.exit(0);
   }
 
-  // Show intro before registry load so it always appears first
   const isInteractive = !flags.noInteractive && !hasRequiredFlags(flags);
   if (isInteractive) {
     intro('StackShift Skills Installation');
   }
 
-  // Load registry (needed for both interactive and non-interactive)
   const s = spinner();
   s.start('Loading registry...');
   const skills = loadSkills();
@@ -156,7 +166,9 @@ export async function install(): Promise<void> {
 
     const s2 = spinner();
     s2.start('Installing...');
-    const results = writeSelection(choices, skills, protocolRegistry.protocols);
+    const results = writeSelection(choices, skills, protocolRegistry.protocols, {
+      bootstrapDone: flags.bootstrap === true,
+    });
     s2.stop('Installation complete');
 
     if (results.length === 0) {
@@ -167,9 +179,34 @@ export async function install(): Promise<void> {
     validateWriteResults(choices, results);
     reportCrossPlatformSync(choices, results);
 
-    // Format output
-    const platformLabels = choices.platforms.map(p => {
-      const baseDir = p === 'agents' ? '.agents' : '.claude';
+    // Run bootstrap materialization if --bootstrap flag set
+    if (flags.bootstrap) {
+      const bs = spinner();
+      bs.start('Running bootstrap materialization...');
+      const bsResult = runBootstrapMaterialization(choices, protocolRegistry.protocols);
+      bs.stop('Bootstrap complete');
+
+      const lines: string[] = [];
+      if (bsResult.materialized.length > 0)
+        lines.push(`Materialized: ${bsResult.materialized.join(', ')}`);
+      if (bsResult.created.length > 0)
+        lines.push(`Created: ${bsResult.created.join(', ')}`);
+      if (bsResult.skipped.length > 0)
+        lines.push(`Skipped (already exists): ${bsResult.skipped.join(', ')}`);
+
+      note(
+        lines.length > 0 ? lines.join('\n') : 'No files to materialize.',
+        'Bootstrap',
+      );
+      note(
+        'UI Forge integration (design-arch.json bridge, PostToolUse hook) runs\n' +
+        'on first AI agent invocation — those steps require the agent runtime.',
+        'Remaining bootstrap steps',
+      );
+    }
+
+    const platformLabels = choices.platforms.map((p) => {
+      const baseDir = PLATFORM_PROJECT_DIR[p];
       return choices.scope === 'global' ? `~/${baseDir}/skills/` : `${baseDir}/skills/`;
     });
 
@@ -177,7 +214,7 @@ export async function install(): Promise<void> {
     const summary = platformLabels.length === 1
       ? `Installed ${skillNames.length} skill(s) to ${platformLabels[0]}`
       : `Installed ${skillNames.length} skill(s) to ${platformLabels.length} platforms:\n` +
-        platformLabels.map(label => `  → ${label}`).join('\n');
+        platformLabels.map((label) => `  → ${label}`).join('\n');
 
     outro(
       summary + '\n' +
@@ -189,29 +226,29 @@ export async function install(): Promise<void> {
   // Interactive mode — intro already shown above
 
   // Check for existing protocol bundle across all platforms
-  const agentsLock = readLockFile('project', 'agents');
-  const claudeLock = readLockFile('project', 'claude');
+  const allPlatforms: Platform[] = ['agents', 'claude', 'copilot', 'gemini', 'cursor'];
+  const lockFiles = allPlatforms
+    .map((p) => ({ platform: p, lock: readLockFile('project', p) }))
+    .filter((e) => e.lock !== null);
 
-  const agentsBundle = agentsLock?.skills.find(s => s.name.startsWith('stackshift-protocols-'));
-  const claudeBundle = claudeLock?.skills.find(s => s.name.startsWith('stackshift-protocols-'));
+  const bundleEntries = lockFiles.flatMap((e) =>
+    (e.lock?.skills ?? [])
+      .filter((s) => s.name.startsWith('stackshift-protocols-'))
+      .map((s) => ({ label: PLATFORM_PROJECT_DIR[e.platform], name: s.name })),
+  );
 
-  const existingProtocolBundle = agentsBundle || claudeBundle;
+  const existingProtocolBundle = bundleEntries.length > 0 ? bundleEntries[0] : undefined;
 
   // Warn if different tiers detected across platforms
-  const detectedBundles = [
-    agentsBundle && { label: '.agents', name: agentsBundle.name },
-    claudeBundle && { label: '.claude', name: claudeBundle.name },
-  ].filter(Boolean) as Array<{ label: string; name: string }>;
-
-  const uniqueBundleNames = new Set(detectedBundles.map(b => b.name));
-  if (detectedBundles.length > 1 && uniqueBundleNames.size > 1) {
+  const uniqueBundleNames = new Set(bundleEntries.map((b) => b.name));
+  if (bundleEntries.length > 1 && uniqueBundleNames.size > 1) {
     note(
       `Different tiers detected:\n` +
-      detectedBundles
-        .map(b => `  ${b.label}: ${b.name.replace('stackshift-protocols-', '')}`)
+      bundleEntries
+        .map((b) => `  ${b.label}: ${b.name.replace('stackshift-protocols-', '')}`)
         .join('\n') +
-      `\n\nThis installation will replace ${detectedBundles.length === 2 ? 'BOTH' : 'ALL'}.`,
-      'Warning'
+      `\n\nThis installation will replace ${bundleEntries.length === 2 ? 'BOTH' : 'ALL'}.`,
+      'Warning',
     );
   }
 
@@ -227,7 +264,9 @@ export async function install(): Promise<void> {
 
   const s3 = spinner();
   s3.start('Installing...');
-  const results = writeSelection(choices, skills, protocolRegistry.protocols);
+  const results = writeSelection(choices, skills, protocolRegistry.protocols, {
+    bootstrapDone: flags.bootstrap === true,
+  });
   s3.stop('Installation complete');
 
   if (results.length === 0) {
@@ -238,20 +277,49 @@ export async function install(): Promise<void> {
   validateWriteResults(choices, results);
   reportCrossPlatformSync(choices, results);
 
-  // Group results by platform for cleaner output
-  const platformLabels = choices.platforms.map(p => {
-    const baseDir = p === 'agents' ? '.agents' : '.claude';
+  // Run bootstrap materialization if --bootstrap flag set
+  if (flags.bootstrap) {
+    const bs = spinner();
+    bs.start('Running bootstrap materialization...');
+    const bsResult = runBootstrapMaterialization(choices, protocolRegistry.protocols);
+    bs.stop('Bootstrap complete');
+
+    const lines: string[] = [];
+    if (bsResult.materialized.length > 0)
+      lines.push(`Materialized: ${bsResult.materialized.join(', ')}`);
+    if (bsResult.created.length > 0)
+      lines.push(`Created: ${bsResult.created.join(', ')}`);
+    if (bsResult.skipped.length > 0)
+      lines.push(`Skipped (already exists): ${bsResult.skipped.join(', ')}`);
+
+    note(
+      lines.length > 0 ? lines.join('\n') : 'No files to materialize.',
+      'Bootstrap',
+    );
+    note(
+      'UI Forge integration (design-arch.json bridge, PostToolUse hook) runs\n' +
+      'on first AI agent invocation — those steps require the agent runtime.',
+      'Remaining bootstrap steps',
+    );
+  }
+
+  const platformLabels = choices.platforms.map((p) => {
+    const baseDir = PLATFORM_PROJECT_DIR[p];
     return choices.scope === 'global' ? `~/${baseDir}/skills/` : `${baseDir}/skills/`;
   });
 
-  const skillNames = results[0].skills; // All platforms get same skills
+  const skillNames = results[0].skills;
   const summary = platformLabels.length === 1
     ? `Installed ${skillNames.length} skill(s) to ${platformLabels[0]}`
     : `Installed ${skillNames.length} skill(s) to ${platformLabels.length} platforms:\n` +
-      platformLabels.map(label => `  → ${label}`).join('\n');
+      platformLabels.map((label) => `  → ${label}`).join('\n');
 
   outro(
     summary + '\n' +
-      skillNames.map((name) => `  ✓ ${name}`).join('\n'),
+      skillNames.map((name) => `  ✓ ${name}`).join('\n') + '\n\n' +
+      (!flags.bootstrap
+        ? 'Run your AI agent in this project to complete bootstrap\n' +
+          '(protocol materialization, design/standards/, UI Forge integration).'
+        : 'Run your AI agent to complete UI Forge integration steps.'),
   );
 }

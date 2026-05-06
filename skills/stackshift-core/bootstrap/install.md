@@ -11,8 +11,9 @@ The goal of bootstrap is to materialize selected protocols, create project infra
 
 Check for `.stackshift/installed.json` in the project root.
 
-- **Exists** → skill is already bootstrapped. Skip the rest of this file and return to the workflow.
 - **Does not exist** → continue.
+- **Exists with `"bootstrapRequired": true`** → the CLI installed skills but bootstrap has not yet run. Continue from Step 2.
+- **Exists without `bootstrapRequired`** → skill is already bootstrapped. Skip this file and return to the workflow.
 
 ---
 
@@ -73,12 +74,12 @@ For each selected protocol:
 ```
 if entry.file is set:
   source:      <skill>/protocols/<entry.file>
-  destination: <project>/docs/protocol/<entry.file>
+  destination: <project>/.stackshift/protocol/<entry.file>
   action:      copy as single file
 
 if entry.dir is set:
   source:      <skill>/protocols/<entry.dir>/
-  destination: <project>/docs/protocol/<entry.dir>/
+  destination: <project>/.stackshift/protocol/<entry.dir>/
   action:      copy directory recursively
 ```
 
@@ -88,7 +89,7 @@ if entry.dir is set:
 
 ### B. Create Project Protocol Registry
 
-Create `<project>/docs/protocol/_registry.json`:
+Create `<project>/.stackshift/protocol/_registry.json`:
 
 ```json
 {
@@ -101,15 +102,15 @@ This empty registry allows teams to add custom protocols that are discovered alo
 
 ### C. Copy Protocol Template
 
-Copy `<skill>/protocols/_template/` → `<project>/docs/protocol/_template/` recursively.
+Copy `<skill>/protocols/_template/` → `<project>/.stackshift/protocol/_template/` recursively.
 
 This provides a starting point for creating complex multi-file protocols.
 
 ### D. Create References Directory
 
-Create `<project>/docs/references/` directory (empty initially).
+Create `<project>/.stackshift/references/` directory (empty initially).
 
-Add a README file: `<project>/docs/references/README.md`:
+Add a README file: `<project>/.stackshift/references/README.md`:
 
 ```markdown
 # Custom References
@@ -135,7 +136,8 @@ Seeds follow standard strategies and load from skill when needed.
 After materialization, the project should have:
 
 ```
-/docs/
+.stackshift/
+├── installed.json              # Bootstrap marker (written in Step 7)
 ├── protocol/
 │   ├── _registry.json          # Project protocol registry (empty)
 │   ├── _template/              # Complex protocol template
@@ -145,7 +147,7 @@ After materialization, the project should have:
     └── README.md
 ```
 
-Note: No `/docs/seed/` directory is created.
+Note: No seed directory is created — seeds load from skill on demand.
 
 ---
 
@@ -160,7 +162,7 @@ Scan the materialized protocols for component-rendering relevance. At minimum, i
 ```json
 {
   "designStandards": {
-    "stackshiftVariantRouter": "./docs/protocol/variant-router.md",
+    "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md",
     "stackshiftComponentStandard": "./design/standards/stackshift-ui.md"
   }
 }
@@ -171,8 +173,8 @@ If `design/standards/stackshift-ui.md` does not exist (e.g. bootstrap was skippe
 ```json
 {
   "designStandards": {
-    "stackshiftVariantRouter": "./docs/protocol/variant-router.md",
-    "stackshiftComponentStandard": "./docs/protocol/variant-router.md"
+    "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md",
+    "stackshiftComponentStandard": "./.stackshift/protocol/variant-router.md"
   }
 }
 ```
@@ -182,7 +184,7 @@ If the `brand` protocol is in the materialized set, add it to the payload:
 ```json
 {
   "designStandards": {
-    "stackshiftVariantRouter": "./docs/protocol/variant-router.md",
+    "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md",
     "stackshiftComponentStandard": "./design/standards/stackshift-ui.md",
     "brand": "./design/standards/brand.md"
   }
@@ -200,7 +202,7 @@ Check for `design/design-arch.json` at the project root:
 {
   "pendingDesignArchBridge": {
     "designStandards": {
-      "stackshiftVariantRouter": "./docs/protocol/variant-router.md"
+      "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md"
     }
   }
 }
@@ -454,7 +456,7 @@ The file can eventually hold additional fields written by the AI agent at bootst
   "a11yRequired": true,
   "pendingDesignArchBridge": {
     "designStandards": {
-      "stackshiftVariantRouter": "./docs/protocol/variant-router.md",
+      "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md",
       "stackshiftComponentStandard": "./design/standards/stackshift-ui.md"
     }
   },
@@ -482,6 +484,7 @@ The file can eventually hold additional fields written by the AI agent at bootst
 | `installedAt` | CLI + bootstrap | Every install / repair |
 | `mode` | CLI + bootstrap | Every install / repair |
 | `protocols` | CLI + bootstrap | Every install / repair |
+| `bootstrapRequired` | CLI (fresh install, no `--bootstrap`) | Set to `true` on first install; **removed** by the agent when bootstrap completes |
 | `a11yRequired` | AI agent (bootstrap Step 7) | When `accessibility` protocol is materialized |
 | `pendingDesignArchBridge` | AI agent (bootstrap Step 6b) | When `design/design-arch.json` is absent |
 | `uiForgeIntegration` | AI agent (bootstrap Step 6d / 6g / 7b) | After `ui-forge` detection; updated by Step 6g (bundle export), Step 7b (PostToolUse hook) |
@@ -489,11 +492,18 @@ The file can eventually hold additional fields written by the AI agent at bootst
 | `uiForgeIntegration.bundleExported` | AI agent (bootstrap Step 6g) | When `claude-design-handoff` protocol is materialized |
 | `uiForgeIntegration.postToolUseHook` | AI agent (bootstrap Step 7b) | When `auto-verify-hook` protocol is materialized |
 
-Fields added by the AI agent are optional and only appear when relevant. The CLI writes only the first four fields and never removes agent-added fields during re-install.
+Fields added by the AI agent are optional and only appear when relevant. The CLI writes the first four fields plus `bootstrapRequired` and never removes agent-added fields during re-install.
+
+**`bootstrapRequired` lifecycle:**
+- CLI sets `"bootstrapRequired": true` on every fresh project install (when `installed.json` did not exist or had `bootstrapRequired: true`).
+- When using `--bootstrap` flag, the CLI runs protocol materialization itself — `bootstrapRequired` is **not** written.
+- The agent removes this field when bootstrap completes (Step 7 write — simply omit the field in the final marker).
+- On re-installs of already-bootstrapped projects (`bootstrapRequired` absent), the CLI preserves the completed state.
 
 This file is the source of truth for what has been installed. Future invocations read it to:
 
-- Skip bootstrap entirely (it exists → we're done).
+- Detect `bootstrapRequired: true` and run the full bootstrap flow.
+- Skip bootstrap (no `bootstrapRequired`) when the project is already fully configured.
 - Detect registry additions that could be offered to the user with a non-blocking "new protocols available" notice (optional future feature).
 
 ---
@@ -586,10 +596,10 @@ Print a summary:
 
 ```
 Bootstrapped StackShift skill (mode: recommended)
-  /docs/protocol/                ← [N] protocols ([r] required, [rec] recommended)
-  /docs/protocol/_registry.json  ← Project protocol registry (empty)
-  /docs/protocol/_template/      ← Complex protocol template
-  /docs/references/              ← Custom reference lookups (empty)
+  .stackshift/protocol/          ← [N] protocols ([r] required, [rec] recommended)
+  .stackshift/protocol/_registry.json  ← Project protocol registry (empty)
+  .stackshift/protocol/_template/      ← Complex protocol template
+  .stackshift/references/        ← Custom reference lookups (empty)
   design/standards/              ← stackshift-ui.md [+ brand.md if brand protocol]
   design/claude-design-bundle/   ← [exported / pending / N/A]
   .forgeignore                   ← [written / already exists]
@@ -606,10 +616,10 @@ ui-forge integration:            ← [detected / not found]
 If UI Forge's scan emitted a fallback banner (Step 6c), append it here verbatim under a `Scan synthesis fallback:` heading so the user sees it inline.
 
 ```
-Edit protocols under /docs/protocol/ freely. Your edits take precedence over
+Edit protocols under .stackshift/protocol/ freely. Your edits take precedence over
 the skill's defaults at lookup time.
 
-Add custom protocols to /docs/protocol/_registry.json for discovery.
+Add custom protocols to .stackshift/protocol/_registry.json for discovery.
 ```
 
 Return to the workflow step the user originally invoked. Do not treat bootstrap as the answer to their actual request.
@@ -618,7 +628,7 @@ Return to the workflow step the user originally invoked. Do not treat bootstrap 
 
 ## Idempotency and bootstrap behavior
 
-- Running bootstrap when `.stackshift/installed.json` exists is a no-op.
-- Bootstrap only runs once per project.
-- New protocols can be added directly to `/docs/protocol/_registry.json` for discovery.
+- Running bootstrap when `.stackshift/installed.json` exists **without** `bootstrapRequired: true` is a no-op.
+- Bootstrap runs once per project. The CLI sets `bootstrapRequired: true` on fresh installs as a signal for the agent to run bootstrap on first invocation.
+- New protocols can be added directly to `.stackshift/protocol/_registry.json` for discovery.
 - If project infrastructure files (_registry.json, _template/, references/) are missing, they can be re-created manually by copying from skill or running bootstrap again after deleting the marker file.

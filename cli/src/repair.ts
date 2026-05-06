@@ -39,7 +39,23 @@ interface InstalledJson {
   seed?: string;
 }
 
-type Platform = 'agents' | 'claude';
+type Platform = 'agents' | 'claude' | 'copilot' | 'gemini' | 'cursor';
+
+const PLATFORM_PROJECT_DIR: Record<Platform, string> = {
+  claude: '.claude',
+  agents: '.agents',
+  copilot: '.github',
+  gemini: '.agents',
+  cursor: '.cursor',
+};
+
+const PLATFORM_GLOBAL_DIR: Record<Platform, string> = {
+  claude: '.claude',
+  agents: '.agents',
+  copilot: '.copilot',
+  gemini: '.gemini/antigravity',
+  cursor: '.cursor',
+};
 
 /**
  * Read intended tier from .stackshift/installed.json
@@ -74,42 +90,35 @@ function readInstalledSeed(): string | undefined {
   }
 }
 
+function scanSkillsDir(dir: string, match: (name: string) => boolean): string[] {
+  if (!pathExistsSync(dir)) return [];
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((f) => f.isDirectory() && match(f.name))
+      .map((f) => f.name);
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Scan both platforms and both scopes for protocol bundle folders
+ * Scan all platforms and both scopes for protocol bundle folders
  */
 function scanForBundles(): Set<string> {
   const bundles = new Set<string>();
-  const platforms: Platform[] = ['agents', 'claude'];
+  const seenDirs = new Set<string>();
+  const allPlatforms: Platform[] = ['agents', 'claude', 'copilot', 'gemini', 'cursor'];
 
-  for (const platform of platforms) {
-    const baseDir = platform === 'agents' ? '.agents' : '.claude';
-    const skillsDir = join(process.cwd(), baseDir, 'skills');
-
-    if (pathExistsSync(skillsDir)) {
-      try {
-        const folders = readdirSync(skillsDir, { withFileTypes: true });
-        for (const folder of folders) {
-          if (folder.isDirectory() && folder.name.startsWith('stackshift-protocols-')) {
-            bundles.add(folder.name);
-          }
-        }
-      } catch {
-        // Directory not readable, skip
-      }
-    }
-
-    // Also check global
-    const globalSkillsDir = join(homedir(), baseDir, 'skills');
-    if (pathExistsSync(globalSkillsDir)) {
-      try {
-        const folders = readdirSync(globalSkillsDir, { withFileTypes: true });
-        for (const folder of folders) {
-          if (folder.isDirectory() && folder.name.startsWith('stackshift-protocols-')) {
-            bundles.add(folder.name);
-          }
-        }
-      } catch {
-        // Directory not readable, skip
+  for (const platform of allPlatforms) {
+    for (const [baseDir, root] of [
+      [PLATFORM_PROJECT_DIR[platform], process.cwd()],
+      [PLATFORM_GLOBAL_DIR[platform], homedir()],
+    ] as [string, string][]) {
+      const skillsDir = join(root, baseDir, 'skills');
+      if (seenDirs.has(skillsDir)) continue;
+      seenDirs.add(skillsDir);
+      for (const name of scanSkillsDir(skillsDir, (n) => n.startsWith('stackshift-protocols-'))) {
+        bundles.add(name);
       }
     }
   }
@@ -118,30 +127,23 @@ function scanForBundles(): Set<string> {
 }
 
 /**
- * Scan both platforms and both scopes for stackshift-seed-* folders
+ * Scan all platforms and both scopes for stackshift-seed-* folders
  */
 function scanForSeedFolders(): Set<string> {
   const seeds = new Set<string>();
-  const platforms: Platform[] = ['agents', 'claude'];
+  const seenDirs = new Set<string>();
+  const allPlatforms: Platform[] = ['agents', 'claude', 'copilot', 'gemini', 'cursor'];
 
-  for (const platform of platforms) {
-    const baseDir = platform === 'agents' ? '.agents' : '.claude';
-
-    for (const skillsDir of [
-      join(process.cwd(), baseDir, 'skills'),
-      join(homedir(), baseDir, 'skills'),
-    ]) {
-      if (pathExistsSync(skillsDir)) {
-        try {
-          const folders = readdirSync(skillsDir, { withFileTypes: true });
-          for (const folder of folders) {
-            if (folder.isDirectory() && folder.name.startsWith('stackshift-seed-')) {
-              seeds.add(folder.name);
-            }
-          }
-        } catch {
-          // Directory not readable, skip
-        }
+  for (const platform of allPlatforms) {
+    for (const [baseDir, root] of [
+      [PLATFORM_PROJECT_DIR[platform], process.cwd()],
+      [PLATFORM_GLOBAL_DIR[platform], homedir()],
+    ] as [string, string][]) {
+      const skillsDir = join(root, baseDir, 'skills');
+      if (seenDirs.has(skillsDir)) continue;
+      seenDirs.add(skillsDir);
+      for (const name of scanSkillsDir(skillsDir, (n) => n.startsWith('stackshift-seed-'))) {
+        seeds.add(name);
       }
     }
   }
@@ -153,16 +155,17 @@ function scanForSeedFolders(): Set<string> {
  * Remove protocol bundle folders from all locations
  */
 function removeBundleFromAllLocations(bundleName: string): void {
-  const platforms: Platform[] = ['agents', 'claude'];
-  const scopes: ('project' | 'global')[] = ['project', 'global'];
+  const allPlatforms: Platform[] = ['agents', 'claude', 'copilot', 'gemini', 'cursor'];
+  const seenDirs = new Set<string>();
 
-  for (const scope of scopes) {
-    for (const platform of platforms) {
-      const baseDir = platform === 'agents' ? '.agents' : '.claude';
-      const skillsDir = scope === 'global'
-        ? join(homedir(), baseDir, 'skills')
-        : join(process.cwd(), baseDir, 'skills');
-
+  for (const platform of allPlatforms) {
+    for (const [baseDir, root] of [
+      [PLATFORM_PROJECT_DIR[platform], process.cwd()],
+      [PLATFORM_GLOBAL_DIR[platform], homedir()],
+    ] as [string, string][]) {
+      const skillsDir = join(root, baseDir, 'skills');
+      if (seenDirs.has(skillsDir)) continue;
+      seenDirs.add(skillsDir);
       const bundlePath = join(skillsDir, bundleName);
       if (pathExistsSync(bundlePath)) {
         try {
@@ -180,16 +183,17 @@ function removeBundleFromAllLocations(bundleName: string): void {
  * Remove seed folders from all locations
  */
 function removeSeedFromAllLocations(folderName: string): void {
-  const platforms: Platform[] = ['agents', 'claude'];
-  const scopes: ('project' | 'global')[] = ['project', 'global'];
+  const allPlatforms: Platform[] = ['agents', 'claude', 'copilot', 'gemini', 'cursor'];
+  const seenDirs = new Set<string>();
 
-  for (const scope of scopes) {
-    for (const platform of platforms) {
-      const baseDir = platform === 'agents' ? '.agents' : '.claude';
-      const skillsDir = scope === 'global'
-        ? join(homedir(), baseDir, 'skills')
-        : join(process.cwd(), baseDir, 'skills');
-
+  for (const platform of allPlatforms) {
+    for (const [baseDir, root] of [
+      [PLATFORM_PROJECT_DIR[platform], process.cwd()],
+      [PLATFORM_GLOBAL_DIR[platform], homedir()],
+    ] as [string, string][]) {
+      const skillsDir = join(root, baseDir, 'skills');
+      if (seenDirs.has(skillsDir)) continue;
+      seenDirs.add(skillsDir);
       const folderPath = join(skillsDir, folderName);
       if (pathExistsSync(folderPath)) {
         try {
@@ -226,16 +230,17 @@ function cleanLockFile(lockPath: string, keepBundle: string): void {
  * Update all lock files across platforms and scopes
  */
 function updateAllLockFiles(keepBundle: string): void {
-  const platforms: Platform[] = ['agents', 'claude'];
-  const scopes: ('project' | 'global')[] = ['project', 'global'];
+  const allPlatforms: Platform[] = ['agents', 'claude', 'copilot', 'gemini', 'cursor'];
+  const seenLocks = new Set<string>();
 
-  for (const scope of scopes) {
-    for (const platform of platforms) {
-      const baseDir = platform === 'agents' ? '.agents' : '.claude';
-      const lockPath = scope === 'global'
-        ? join(homedir(), baseDir, 'skills-lock.json')
-        : join(process.cwd(), baseDir, 'skills-lock.json');
-
+  for (const platform of allPlatforms) {
+    for (const [baseDir, root] of [
+      [PLATFORM_PROJECT_DIR[platform], process.cwd()],
+      [PLATFORM_GLOBAL_DIR[platform], homedir()],
+    ] as [string, string][]) {
+      const lockPath = join(root, baseDir, 'skills-lock.json');
+      if (seenLocks.has(lockPath)) continue;
+      seenLocks.add(lockPath);
       cleanLockFile(lockPath, keepBundle);
     }
   }

@@ -16,6 +16,27 @@ const skillVersionPath = resolve(__dirname, '../../skill.version');
 const LOCK_FILE = 'skills-lock.json';
 
 /**
+ * Project and global skill root dirs for each supported platform.
+ * - project: relative dir under cwd (without trailing /skills)
+ * - global: relative dir under homedir (without trailing /skills)
+ */
+const PLATFORM_PROJECT_DIR: Record<Platform, string> = {
+  claude: '.claude',
+  agents: '.agents',
+  copilot: '.github',
+  gemini: '.agents',
+  cursor: '.cursor',
+};
+
+const PLATFORM_GLOBAL_DIR: Record<Platform, string> = {
+  claude: '.claude',
+  agents: '.agents',
+  copilot: '.copilot',
+  gemini: join('.gemini', 'antigravity'),
+  cursor: '.cursor',
+};
+
+/**
  * Atomic JSON write: write to a `.tmp` file, then rename.
  * Prevents lock-file corruption if the process is killed mid-write.
  */
@@ -36,13 +57,17 @@ interface LockFile {
 }
 
 function resolveTargetDir(scope: 'project' | 'global', platform: Platform): string {
-  const baseDir = platform === 'agents' ? '.agents' : '.claude';
+  const baseDir = scope === 'global'
+    ? PLATFORM_GLOBAL_DIR[platform]
+    : PLATFORM_PROJECT_DIR[platform];
   if (scope === 'global') return join(homedir(), baseDir, 'skills');
   return join(process.cwd(), baseDir, 'skills');
 }
 
 function resolveLockPath(scope: 'project' | 'global', platform: Platform): string {
-  const baseDir = platform === 'agents' ? '.agents' : '.claude';
+  const baseDir = scope === 'global'
+    ? PLATFORM_GLOBAL_DIR[platform]
+    : PLATFORM_PROJECT_DIR[platform];
   if (scope === 'global') return join(homedir(), baseDir, LOCK_FILE);
   return join(process.cwd(), baseDir, LOCK_FILE);
 }
@@ -52,18 +77,13 @@ function resolveLockPath(scope: 'project' | 'global', platform: Platform): strin
  *
  * INTENTIONAL: Filters out previous entry with same name to prevent duplicates.
  * For protocol bundles, this means only one tier can be active at a time.
- * The installed tier (required/recommended/full) already includes all lower tiers,
- * so having multiple bundles would be redundant.
  */
 function appendLock(lockPath: string, entry: LockEntry): void {
   let lock: LockFile = { skills: [] };
   if (pathExistsSync(lockPath)) {
     lock = readJsonSync(lockPath) as LockFile;
   }
-
-  // Remove previous entry with same name to prevent duplicates
   lock.skills = lock.skills.filter((s) => s.name !== entry.name);
-
   lock.skills.push(entry);
   writeJsonAtomic(lockPath, lock);
 }
@@ -125,17 +145,20 @@ function resolveProtocolSkillName(tier: Exclude<ProtocolTier, 'custom'>): string
 
 /**
  * Detect all platforms where StackShift is currently installed.
- * Returns list of platforms that have stackshift-core installed.
+ * Deduplicates on the resolved path so gemini/agents (same project dir) count once.
  */
 function getInstalledPlatforms(scope: 'project' | 'global'): Platform[] {
   const platforms: Platform[] = [];
-  const platformsToCheck: Platform[] = ['agents', 'claude'];
+  const seenDirs = new Set<string>();
+  const allPlatforms: Platform[] = ['agents', 'claude', 'copilot', 'gemini', 'cursor'];
 
-  for (const platform of platformsToCheck) {
+  for (const platform of allPlatforms) {
     const targetDir = resolveTargetDir(scope, platform);
+    if (seenDirs.has(targetDir)) continue;
     const coreDir = join(targetDir, 'stackshift-core');
     if (pathExistsSync(coreDir)) {
       platforms.push(platform);
+      seenDirs.add(targetDir);
     }
   }
 
@@ -145,21 +168,14 @@ function getInstalledPlatforms(scope: 'project' | 'global'): Platform[] {
 /**
  * Remove old protocol bundle folders when installing a new tier.
  * Only one protocol tier can be active at a time.
- *
- * @param targetDir - The skills directory to clean (e.g., .agents/skills)
- * @param newBundleName - The bundle being installed (will NOT be removed)
- * @returns Array of removed bundle names
  */
-function cleanupOldProtocolBundles(
-  targetDir: string,
-  newBundleName: string
-): string[] {
+function cleanupOldProtocolBundles(targetDir: string, newBundleName: string): string[] {
   const removed: string[] = [];
   const bundleNames = [
     'stackshift-protocols-required',
     'stackshift-protocols-recommended',
     'stackshift-protocols-full',
-    'stackshift-protocols-custom'
+    'stackshift-protocols-custom',
   ];
 
   for (const oldBundle of bundleNames) {
@@ -182,16 +198,13 @@ function cleanupOldProtocolBundles(
 
 /**
  * Remove old protocol bundles from lock file.
- * Keeps only the new bundle entry.
  */
 function cleanupLockFile(lockPath: string, newBundleName: string): void {
   if (!pathExistsSync(lockPath)) return;
-
   try {
     const lock = readJsonSync(lockPath) as LockFile;
-    // Remove all old protocol bundle entries
     lock.skills = lock.skills.filter(
-      (s) => !s.name.startsWith('stackshift-protocols-') || s.name === newBundleName
+      (s) => !s.name.startsWith('stackshift-protocols-') || s.name === newBundleName,
     );
     writeJsonAtomic(lockPath, lock);
   } catch (err: unknown) {
@@ -203,20 +216,26 @@ function cleanupLockFile(lockPath: string, newBundleName: string): void {
 /**
  * Write .stackshift/installed.json marker for AI agent bootstrap.
  *
- * IMPORTANT: This file is updated every time the tier changes.
- * It serves as the source of truth for the selected protocol tier mode.
- * The CLI uses skills-lock.json for installation detection,
- * but .stackshift/installed.json is the canonical record of tier selection.
+ * bootstrapDone = true  → CLI ran --bootstrap materialization; do NOT set bootstrapRequired.
+ * bootstrapDone = false → Fresh install or re-install; set bootstrapRequired: true only when
+ *                         this is a new project (marker didn't exist) or it still has the flag.
  */
 function writeStackshiftMarker(
   choices: InstallChoices,
   allProtocols: ProtocolEntry[],
+  bootstrapDone: boolean,
 ): void {
   if (choices.scope !== 'project') return;
 
   const markerPath = join(process.cwd(), '.stackshift', 'installed.json');
-  // REMOVED: if (pathExistsSync(markerPath)) return;
-  // Always overwrite to keep tier selection up to date
+
+  const markerExisted = pathExistsSync(markerPath);
+  let existing: Record<string, unknown> = {};
+  if (markerExisted) {
+    try {
+      existing = readJsonSync(markerPath) as Record<string, unknown>;
+    } catch { /* overwrite on parse failure */ }
+  }
 
   let skillVersion = '0.1.0';
   try {
@@ -245,18 +264,13 @@ function writeStackshiftMarker(
 
   ensureDirSync(join(process.cwd(), '.stackshift'));
 
-  // Preserve AI-agent-added fields (uiForgeIntegration, pendingDesignArchBridge) across re-installs.
-  let existing: Record<string, unknown> = {};
-  if (pathExistsSync(markerPath)) {
-    try {
-      existing = readJsonSync(markerPath) as Record<string, unknown>;
-    } catch { /* overwrite on parse failure */ }
-  }
+  // Strip fields that need controlled re-emission
+  const {
+    seed: _prevSeed,
+    bootstrapRequired: _prevBootstrapRequired,
+    ...restExisting
+  } = existing as Record<string, unknown> & { seed?: string; bootstrapRequired?: boolean };
 
-  // Strip seed from existing so a 'none' selection actively removes it
-  const { seed: _prevSeed, ...restExisting } = existing as Record<string, unknown> & { seed?: string };
-
-  // When keeping the existing protocol tier, preserve the recorded mode + protocols
   const mode = choices.keepProtocol && existing.mode
     ? String(existing.mode)
     : modeMap[choices.protocolTier];
@@ -270,17 +284,223 @@ function writeStackshiftMarker(
         return entry;
       });
 
+  // Set bootstrapRequired: true only for fresh installs or when it was already set (agent hasn't run yet)
+  const needsBootstrapRequired = !bootstrapDone && (!markerExisted || existing.bootstrapRequired === true);
+
   writeJsonAtomic(markerPath, {
     ...restExisting,
     skillVersion,
     installedAt: new Date().toISOString(),
     mode,
     protocols: protocolList,
-    ...(choices.seed && choices.seed !== 'none'
-      ? { seed: choices.seed }
-      : {}),
+    ...(needsBootstrapRequired ? { bootstrapRequired: true } : {}),
+    ...(choices.seed && choices.seed !== 'none' ? { seed: choices.seed } : {}),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Bootstrap materialization — runs when --bootstrap flag is used
+// ---------------------------------------------------------------------------
+
+const STACKSHIFT_UI_MD = `# StackShift UI — Component Standards
+
+These conventions apply to every variant generated in this project.
+
+## Import rules
+- Always import the props interface from \`"."\` (the section index file), never from \`@stackshift-ui\`.
+- Component library imports come from \`@stackshift-ui/<section>\`.
+
+## Null handling
+- Use \`?? undefined\` for every field extracted from \`data?.variants\`.
+- Return \`null\` when required props are absent — never render a broken state.
+- Use ternary guards (\`{title ? <Heading title={title} /> : null}\`) rather than \`&&\`.
+
+## Function structure
+- Default export: the main variant component.
+- Named export: re-export the function (\`export { MySection_X }\`).
+- Helper functions below all exports, not above.
+- Defaults in destructure signature, not inside the function body.
+
+## TypeScript
+- All props optional (\`?\`) — Sanity data can always be null/undefined.
+- No \`any\` types.
+- Prefer composing existing interfaces over defining new ones.
+`;
+
+const BRAND_MD = `# Brand Standards
+
+> Replace this starter with your project's actual brand guidelines.
+
+## Voice and tone
+[Describe writing register, formality, sentence structure guidelines]
+
+## Color palette
+[List named color roles: primary, secondary, neutral, accent — with usage rules]
+
+## Typography
+[Map heading levels to font / weight / size; describe body text defaults]
+
+## Imagery
+[Describe photography style, illustration tone, icon set restrictions]
+`;
+
+const FORGEIGNORE_CONTENT = `# StackShift — Sanity + Next.js defaults
+studio/
+.sanity/
+.next/
+dist/
+build/
+out/
+coverage/
+
+# UI Forge — Claude Design integration (regeneratable artifacts)
+design/.handoff-cache/
+design/claude-design-bundle/
+`;
+
+const REFERENCES_README = `# Custom References
+
+Add custom reference lookups here for project-specific protocols.
+
+These augment the skill's standard references without modifying them.
+
+## Example
+
+Create files like:
+- \`custom-lookups.md\` - Custom data tables
+- \`project-types.md\` - Project-specific type definitions
+- \`field-patterns.md\` - Project field patterns
+`;
+
+export interface BootstrapResult {
+  materialized: string[];
+  created: string[];
+  skipped: string[];
+}
+
+/**
+ * Run protocol materialization and create project infrastructure.
+ * Called when --bootstrap flag is used. Performs the file-system portions of
+ * bootstrap/install.md Steps 5 and 8. UI Forge integration steps (Steps 6, 7b)
+ * still require the AI agent at first invocation.
+ */
+export function runBootstrapMaterialization(
+  choices: InstallChoices,
+  allProtocols: ProtocolEntry[],
+): BootstrapResult {
+  const result: BootstrapResult = { materialized: [], created: [], skipped: [] };
+  const cwd = process.cwd();
+
+  // Build the selected protocol list
+  const tierTiersMap: Record<ProtocolTier, Array<'required' | 'recommended' | 'optional'>> = {
+    required: ['required'],
+    recommended: ['required', 'recommended'],
+    full: ['required', 'recommended', 'optional'],
+    custom: ['required'],
+  };
+  let selectedProtocols = allProtocols.filter((p) =>
+    tierTiersMap[choices.protocolTier].includes(p.tier),
+  );
+  if (choices.protocolTier === 'custom') {
+    const extras = allProtocols.filter((p) => choices.customProtocols.includes(p.id));
+    selectedProtocols = [...selectedProtocols, ...extras];
+  }
+
+  const protocolTargetDir = join(cwd, '.stackshift', 'protocol');
+  const referencesTargetDir = join(cwd, '.stackshift', 'references');
+  ensureDirSync(protocolTargetDir);
+
+  // Step 5A — Materialize selected protocols
+  for (const protocol of selectedProtocols) {
+    if (protocol.file) {
+      const src = join(protocolsDir, protocol.file);
+      const dest = join(protocolTargetDir, protocol.file);
+      if (pathExistsSync(dest)) {
+        result.skipped.push(protocol.file);
+      } else if (pathExistsSync(src)) {
+        copySync(src, dest);
+        result.materialized.push(protocol.file);
+      }
+    } else if (protocol.dir) {
+      const src = join(protocolsDir, protocol.dir);
+      const dest = join(protocolTargetDir, protocol.dir);
+      if (pathExistsSync(dest)) {
+        result.skipped.push(protocol.dir + '/');
+      } else if (pathExistsSync(src)) {
+        copySync(src, dest, { overwrite: true });
+        result.materialized.push(protocol.dir + '/');
+      }
+    }
+  }
+
+  // Step 5B — Write project protocol registry
+  const registryPath = join(protocolTargetDir, '_registry.json');
+  if (!pathExistsSync(registryPath)) {
+    writeJsonAtomic(registryPath, {
+      protocols: [],
+      note: 'Add custom project protocols here. They will be discovered alongside skill protocols.',
+    });
+    result.created.push('.stackshift/protocol/_registry.json');
+  } else {
+    result.skipped.push('.stackshift/protocol/_registry.json');
+  }
+
+  // Step 5C — Copy protocol template
+  const templateSrc = join(protocolsDir, '_template');
+  const templateDest = join(protocolTargetDir, '_template');
+  if (!pathExistsSync(templateDest) && pathExistsSync(templateSrc)) {
+    copySync(templateSrc, templateDest);
+    result.created.push('.stackshift/protocol/_template/');
+  } else if (pathExistsSync(templateDest)) {
+    result.skipped.push('.stackshift/protocol/_template/');
+  }
+
+  // Step 5D — Create references directory
+  ensureDirSync(referencesTargetDir);
+  const referencesReadme = join(referencesTargetDir, 'README.md');
+  if (!pathExistsSync(referencesReadme)) {
+    writeFileSync(referencesReadme, REFERENCES_README, 'utf8');
+    result.created.push('.stackshift/references/README.md');
+  } else {
+    result.skipped.push('.stackshift/references/README.md');
+  }
+
+  // Step 6f — Create design/standards/
+  const designStandardsDir = join(cwd, 'design', 'standards');
+  ensureDirSync(designStandardsDir);
+
+  const stackshiftUiPath = join(designStandardsDir, 'stackshift-ui.md');
+  if (!pathExistsSync(stackshiftUiPath)) {
+    writeFileSync(stackshiftUiPath, STACKSHIFT_UI_MD, 'utf8');
+    result.created.push('design/standards/stackshift-ui.md');
+  } else {
+    result.skipped.push('design/standards/stackshift-ui.md');
+  }
+
+  const hasBrandProtocol = selectedProtocols.some((p) => p.id === 'brand');
+  if (hasBrandProtocol) {
+    const brandPath = join(designStandardsDir, 'brand.md');
+    if (!pathExistsSync(brandPath)) {
+      writeFileSync(brandPath, BRAND_MD, 'utf8');
+      result.created.push('design/standards/brand.md');
+    } else {
+      result.skipped.push('design/standards/brand.md');
+    }
+  }
+
+  // Step 8 — Write .forgeignore if not exists
+  const forgeignorePath = join(cwd, '.forgeignore');
+  if (!pathExistsSync(forgeignorePath)) {
+    writeFileSync(forgeignorePath, FORGEIGNORE_CONTENT, 'utf8');
+    result.created.push('.forgeignore');
+  } else {
+    result.skipped.push('.forgeignore');
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 
 interface InstallResult {
   platform: Platform;
@@ -291,6 +511,7 @@ export function writeSelection(
   choices: InstallChoices,
   skills: SkillEntry[],
   allProtocols: ProtocolEntry[],
+  options: { bootstrapDone?: boolean } = {},
 ): InstallResult[] {
   const results: InstallResult[] = [];
   const now = new Date().toISOString();
@@ -298,21 +519,19 @@ export function writeSelection(
   // Detect all platforms where StackShift is already installed
   const installedPlatforms = getInstalledPlatforms(choices.scope);
 
-  // Merge: selected platforms + already installed platforms
-  // This ensures we sync protocol tiers across ALL platforms, not just selected ones
-  const allPlatformsToUpdate = new Set<Platform>([
-    ...choices.platforms,
-    ...installedPlatforms,
-  ]);
+  // Deduplicate on resolved path to avoid double-writes (e.g. gemini + agents share .agents/)
+  const seenTargetDirs = new Set<string>();
+  const allPlatformsToUpdate = new Set<Platform>([...choices.platforms, ...installedPlatforms]);
 
-  // Determine the bundle name once (used for all platforms)
   const bundleName = choices.protocolTier === 'custom'
     ? 'stackshift-protocols-custom'
     : resolveProtocolSkillName(choices.protocolTier);
 
-  // Install/sync to each platform
   for (const platform of allPlatformsToUpdate) {
     const targetDir = resolveTargetDir(choices.scope, platform);
+    if (seenTargetDirs.has(targetDir)) continue;
+    seenTargetDirs.add(targetDir);
+
     const lockPath = resolveLockPath(choices.scope, platform);
     ensureDirSync(targetDir);
 
@@ -352,8 +571,8 @@ export function writeSelection(
     results.push({ platform, skills: installed });
   }
 
-  // Write .stackshift/installed.json (always overwrites to keep tier up to date)
-  writeStackshiftMarker(choices, allProtocols);
+  // Write .stackshift/installed.json
+  writeStackshiftMarker(choices, allProtocols, options.bootstrapDone ?? false);
 
   return results;
 }

@@ -3,11 +3,11 @@
 > **Protocol Discovery for This Step:**
 >
 > Load protocols from merged registry (project + skill) where `appliesTo` includes Step 1:
-> 1. Read `/docs/protocol/_registry.json` (if exists)
+> 1. Read `.stackshift/protocol/_registry.json` (if exists)
 > 2. Read `protocols/_registry.json` from skill
 > 3. Merge registries (project protocols override skill protocols with same ID)
 > 4. Filter protocols: `tier === 'required'` OR `tier === 'recommended'`
-> 5. Load each protocol from `/docs/protocol/<id>` (project) OR `protocols/<id>` (skill)
+> 5. Load each protocol from `.stackshift/protocol/<id>` (project) OR `protocols/<id>` (skill)
 >
 > **Required protocols** (load and enforce):
 > - Factory Function Pattern — wrong shape breaks `hideInVariants` at runtime
@@ -55,7 +55,7 @@ These do not cause errors if skipped but noticeably degrade Sanity Studio UX:
 - **Add a `preview` block to every array of objects and every object field** — image or icon fallback, `prepare()` always returning a non-empty `title`. → `preview-conventions`
 - **Pick the right `options.layout` for arrays** — `grid` for images, `tags` for string arrays, collapsible for navs. → `array-layout`
 
-**Lookup order for the AI:** `/docs/protocol/<name>.md` in the project first, then `protocols/<name>.md` in the skill folder. Project docs win.
+**Lookup order for the AI:** `.stackshift/protocol/<name>.md` in the project first, then `protocols/<name>.md` in the skill folder. Project docs win.
 
 ---
 

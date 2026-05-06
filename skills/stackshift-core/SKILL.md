@@ -78,7 +78,8 @@ To fix:
 If installation is valid, check the project root for `.stackshift/installed.json`.
 
 - **Missing** → run `bootstrap/install.md`. Stop. Return here after user confirms.
-- **Present** → skip. Proceed to workflow.
+- **Present with `"bootstrapRequired": true`** → the CLI installed skills but bootstrap has not yet run. Run `bootstrap/install.md`. Stop. Return here after user confirms.
+- **Present without `bootstrapRequired`** → skip. Proceed to workflow.
 
 This materializes selected protocols, creates project infrastructure (_registry.json, _template/, references/), and enables custom protocol development.
 
@@ -140,20 +141,20 @@ Do not load these preemptively. Load only when the current workflow step or erro
 | StackShift ↔ UI Forge handshake (markers, flag refusals, contract handoff) | `protocols/paired-mode-contract.md` |
 | A protocol (required / recommended / optional convention) | See "Protocol Discovery" below |
 | Active seeding strategy | `seeds/<file>` from skill (see `seeds/_registry.json`) — see "Seed Discovery" below |
-| A custom reference lookup | `/docs/references/<name>.md` (project), else `references/<name>.md` (skill) |
+| A custom reference lookup | `.stackshift/references/<name>.md` (project), else `references/<name>.md` (skill) |
 
 ### Protocol Discovery
 
 Protocols are discovered from **merged registries**:
 
-1. **Read project registry** (if exists): `/docs/protocol/_registry.json`
+1. **Read project registry** (if exists): `.stackshift/protocol/_registry.json`
 2. **Read skill registry**: `protocols/_registry.json`
 3. **Merge:** Project protocols take precedence over skill protocols with same ID
 4. **Load on-demand:** When protocol is needed, load from:
-   - `/docs/protocol/<id>.md` or `/docs/protocol/<id>/` (project)
+   - `.stackshift/protocol/<id>.md` or `.stackshift/protocol/<id>/` (project)
    - `protocols/<id>.md` or `protocols/<id>/` (skill fallback)
 
-**Custom protocols** registered in `/docs/protocol/_registry.json` are discovered alongside skill protocols.
+**Custom protocols** registered in `.stackshift/protocol/_registry.json` are discovered alongside skill protocols.
 
 ### Protocol Tiers
 
@@ -184,7 +185,7 @@ Use `_template/` as starting point for directory-based protocols.
 
 Custom references for project-specific protocols:
 
-1. **Check project:** `/docs/references/<name>.md` (custom reference lookups)
+1. **Check project:** `.stackshift/references/<name>.md` (custom reference lookups)
 2. **Fall back to skill:** `references/<name>.md` (standard references)
 
 Project references augment skill references without modifying them.
@@ -197,8 +198,8 @@ To add a custom protocol in your project:
 
 ### Simple Single-File Protocol
 
-1. Create protocol file: `/docs/protocol/custom-protocol-name.md`
-2. Register in `/docs/protocol/_registry.json`:
+1. Create protocol file: `.stackshift/protocol/custom-protocol-name.md`
+2. Register in `.stackshift/protocol/_registry.json`:
    ```json
    {
      "protocols": [
@@ -212,17 +213,17 @@ To add a custom protocol in your project:
      ]
    }
    ```
-3. Register in `/docs/protocol/_registry.json`
+3. (Entry already added above — no second step needed)
 
 ### Complex Multi-File Protocol
 
-1. Copy template: `cp -r /docs/protocol/_template/ /docs/protocol/custom-protocol/`
-2. Edit files in `/docs/protocol/custom-protocol/` (SKILL.md, architecture.md, checklist.md, etc.)
-3. Register in `/docs/protocol/_registry.json` with `"dir": "custom-protocol/"`
+1. Copy template: `cp -r .stackshift/protocol/_template/ .stackshift/protocol/custom-protocol/`
+2. Edit files in `.stackshift/protocol/custom-protocol/` (overview.md, architecture.md, checklist.md, etc.)
+3. Register in `.stackshift/protocol/_registry.json` with `"dir": "custom-protocol/"`
 
 ### Custom References
 
-Add custom reference lookups in `/docs/references/<name>.md` for project-specific data that your custom protocols need.
+Add custom reference lookups in `.stackshift/references/<name>.md` for project-specific data that your custom protocols need.
 
 ---
 

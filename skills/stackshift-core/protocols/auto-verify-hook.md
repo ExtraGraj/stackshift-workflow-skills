@@ -94,8 +94,8 @@ If you need to bypass the hook for a single edit (e.g. an intentional intermedia
 Selected during bootstrap (optional — unchecked by default in interactive mode).
 
 To add after initial bootstrap:
-1. Append the registry entry to `/docs/protocol/_registry.json` (`tier: "optional"`, `file: "auto-verify-hook.md"`).
-2. Copy `protocols/auto-verify-hook.md` from the skill bundle to `/docs/protocol/`.
+1. Append the registry entry to `.stackshift/protocol/_registry.json` (`tier: "optional"`, `file: "auto-verify-hook.md"`).
+2. Copy `protocols/auto-verify-hook.md` from the skill bundle to `.stackshift/protocol/`.
 3. Add the snippet above to `.claude/settings.json` manually (bootstrap does not retroactively edit settings outside the bootstrap flow).
 
 To remove: delete the StackShift hook entry from `.claude/settings.json`. The protocol stays installed; only the runtime hook is gone.

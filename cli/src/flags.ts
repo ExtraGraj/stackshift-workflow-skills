@@ -3,9 +3,10 @@ import type { InstallChoices, ProtocolTier, ScopeChoice, Platform } from './prom
 export interface Flags {
   tier?: 'required' | 'recommended' | 'full';
   scope?: 'project' | 'global';
-  platforms?: ('agents' | 'claude')[];
+  platforms?: Platform[];
   seed?: string;
   noInteractive?: boolean;
+  bootstrap?: boolean;
   help?: boolean;
 }
 
@@ -14,7 +15,9 @@ export interface Flags {
  * Supports:
  *   --tier <required|recommended|full>
  *   --scope <project|global>
- *   --platform <agents|claude|agents,claude>
+ *   --platform <agents|claude|copilot|gemini|cursor|comma-separated>
+ *   --seed <id>
+ *   --bootstrap
  *   --no-interactive
  *   --help
  */
@@ -61,13 +64,14 @@ export function parseFlags(args: string[]): Flags {
           const platformArg = args[++i];
           const platforms = platformArg.split(',');
           const validPlatforms: Platform[] = [];
+          const valid: Platform[] = ['agents', 'claude', 'copilot', 'gemini', 'cursor'];
 
           for (const p of platforms) {
-            if (p === 'agents' || p === 'claude') {
-              validPlatforms.push(p);
+            if (valid.includes(p as Platform)) {
+              validPlatforms.push(p as Platform);
             } else {
               console.error(`Invalid --platform value: ${p}`);
-              console.error('Valid values: agents, claude, or comma-separated combinations');
+              console.error('Valid values: agents, claude, copilot, gemini, cursor (or comma-separated)');
               process.exit(1);
             }
           }
@@ -80,6 +84,10 @@ export function parseFlags(args: string[]): Flags {
         if (i + 1 < args.length) {
           flags.seed = args[++i];
         }
+        break;
+
+      case '--bootstrap':
+        flags.bootstrap = true;
         break;
 
       case '--no-interactive':
@@ -148,12 +156,24 @@ COMMANDS:
 OPTIONS:
   --tier <required|recommended|full>    Protocol tier (default: recommended)
   --scope <project|global>              Install location (default: project)
-  --platform <agents|claude>            Platform(s) (default: agents)
-                                        Use comma-separated for multiple: agents,claude
+  --platform <platform>                 Platform(s) (default: agents)
+                                        Values: claude, agents, copilot, gemini, cursor
+                                        Use comma-separated for multiple: claude,agents
   --seed <id|none>                      Seeding strategy id, or 'none' (default: none)
                                         Example: --seed initialvalue-seeding
+  --bootstrap                           Run protocol materialization after install.
+                                        Copies selected protocols to .stackshift/protocol/,
+                                        creates .stackshift/references/, design/standards/,
+                                        and .forgeignore. Skips UI Forge steps (agent handles those).
   --no-interactive                      Skip prompts, use flags + defaults
   --help, -h                            Show this help
+
+PLATFORM SKILL ROOTS:
+  claude    Claude Code         .claude/skills/         ~/.claude/skills/
+  copilot   GitHub Copilot      .github/skills/         ~/.copilot/skills/
+  agents    OpenAI Codex / All  .agents/skills/         ~/.agents/skills/
+  gemini    Google Gemini       .agents/skills/         ~/.gemini/antigravity/skills/
+  cursor    Cursor IDE          .cursor/skills/         ~/.cursor/skills/
 
 EXAMPLES:
   # Interactive installation (recommended)
@@ -166,7 +186,10 @@ EXAMPLES:
   npx @extragraj/stackshift-skills init --tier full --scope project --platform agents --no-interactive
 
   # Install to multiple platforms
-  npx @extragraj/stackshift-skills init --platform agents,claude --no-interactive
+  npx @extragraj/stackshift-skills init --platform claude,agents --no-interactive
+
+  # Install and run full bootstrap materialization
+  npx @extragraj/stackshift-skills init --tier recommended --bootstrap --no-interactive
 
   # Fix multi-tier installation
   npx @extragraj/stackshift-skills repair
@@ -175,5 +198,8 @@ NOTES:
   - stackshift-core is always installed (required for workflow)
   - Custom tier selection requires interactive mode
   - Protocol tiers are cumulative (full includes recommended + required)
+  - Without --bootstrap, the AI agent runs interactive bootstrap on first invocation
+  - With --bootstrap, the CLI materializes protocols to .stackshift/ non-interactively;
+    UI Forge integration steps still require the AI agent
   `);
 }

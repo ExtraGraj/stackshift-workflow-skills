@@ -11,7 +11,7 @@ Authoritative definitions of the five install modes offered during bootstrap. Ea
 **Availability:** AI-agent bootstrap prompt only. Not available via the CLI (`npx @extragraj/stackshift-skills init`). The CLI always writes a bootstrap marker with a selected tier.
 
 **Materialized:**
-- Nothing copied to `/docs/`
+- Nothing copied to `.stackshift/protocol/`
 - No project infrastructure created
 - `.stackshift/installed.json` records `mode: "none"` with empty protocol list
 
@@ -29,10 +29,10 @@ Authoritative definitions of the five install modes offered during bootstrap. Ea
 **Intent:** Install only protocols the workflow strictly depends on — those whose violation causes build errors, runtime errors, or schema load failures.
 
 **Materialized:**
-- Required protocols → `/docs/protocol/`
-- Project protocol registry → `/docs/protocol/_registry.json` (empty)
-- Protocol template → `/docs/protocol/_template/`
-- References directory → `/docs/references/` (empty)
+- Required protocols → `.stackshift/protocol/`
+- Project protocol registry → `.stackshift/protocol/_registry.json` (empty)
+- Protocol template → `.stackshift/protocol/_template/`
+- References directory → `.stackshift/references/` (empty)
 
 **Not materialized:**
 - Seeds
@@ -48,10 +48,10 @@ Authoritative definitions of the five install modes offered during bootstrap. Ea
 **Intent:** Install the sensible baseline — everything required plus quality-of-UX conventions used across most StackShift projects.
 
 **Materialized:**
-- Required + recommended protocols → `/docs/protocol/`
-- Project protocol registry → `/docs/protocol/_registry.json` (empty)
-- Protocol template → `/docs/protocol/_template/`
-- References directory → `/docs/references/` (empty)
+- Required + recommended protocols → `.stackshift/protocol/`
+- Project protocol registry → `.stackshift/protocol/_registry.json` (empty)
+- Protocol template → `.stackshift/protocol/_template/`
+- References directory → `.stackshift/references/` (empty)
 
 **Not materialized:**
 - Seeds
@@ -66,15 +66,15 @@ Authoritative definitions of the five install modes offered during bootstrap. Ea
 **Intent:** Install every protocol the skill ships with, including optional systems that bring their own architecture and dependencies.
 
 **Materialized:**
-- All protocols (required + recommended + optional) → `/docs/protocol/`
-- Project protocol registry → `/docs/protocol/_registry.json` (empty)
-- Protocol template → `/docs/protocol/_template/`
-- References directory → `/docs/references/` (empty)
+- All protocols (required + recommended + optional) → `.stackshift/protocol/`
+- Project protocol registry → `.stackshift/protocol/_registry.json` (empty)
+- Protocol template → `.stackshift/protocol/_template/`
+- References directory → `.stackshift/references/` (empty)
 
 **Not materialized:**
 - Seeds
 
-**Warning:** Optional protocols may require dependencies not yet installed (shadcn, react-hook-form, context providers, etc.). Installing protocols to `/docs/` does not install runtime dependencies — install those separately. See each optional protocol's documentation.
+**Warning:** Optional protocols may require dependencies not yet installed (shadcn, react-hook-form, context providers, etc.). Installing protocols to `.stackshift/protocol/` does not install runtime dependencies — install those separately. See each optional protocol's documentation.
 
 **Good for:** Teams auditing what StackShift offers, internal documentation projects, reference setups.
 
@@ -82,7 +82,7 @@ Authoritative definitions of the five install modes offered during bootstrap. Ea
 
 ## Interactive
 
-**Intent:** Exact control over which protocols land in `/docs/`. Useful for brownfield adoption or selective optional system adoption.
+**Intent:** Exact control over which protocols land in `.stackshift/protocol/`. Useful for brownfield adoption or selective optional system adoption.
 
 **Result:**
 - Multi-select prompt for protocols renders as `[tier] title — summary`
@@ -92,10 +92,10 @@ Authoritative definitions of the five install modes offered during bootstrap. Ea
 - Only checked items copied
 
 **Always materialized:**
-- Selected protocols → `/docs/protocol/`
-- Project protocol registry → `/docs/protocol/_registry.json` (empty)
-- Protocol template → `/docs/protocol/_template/`
-- References directory → `/docs/references/` (empty)
+- Selected protocols → `.stackshift/protocol/`
+- Project protocol registry → `.stackshift/protocol/_registry.json` (empty)
+- Protocol template → `.stackshift/protocol/_template/`
+- References directory → `.stackshift/references/` (empty)
 
 **Never materialized:**
 - Seeds
@@ -108,18 +108,18 @@ Authoritative definitions of the five install modes offered during bootstrap. Ea
 
 When the workflow needs a protocol, discovery happens via **merged registries**:
 
-1. **Read project registry:** `/docs/protocol/_registry.json` (if exists)
+1. **Read project registry:** `.stackshift/protocol/_registry.json` (if exists)
 2. **Read skill registry:** `protocols/_registry.json`
 3. **Merge:** Project protocols take precedence over skill protocols with same ID
 4. **Load on-demand:** When protocol needed, load from:
-   - `/docs/protocol/<id>.md` or `/docs/protocol/<id>/` (project)
+   - `.stackshift/protocol/<id>.md` or `.stackshift/protocol/<id>/` (project)
    - `protocols/<id>.md` or `protocols/<id>/` (skill fallback)
 
 **Key behaviors:**
 - Mode `none` still gets working defaults (from skill protocols)
-- Editing a protocol in `/docs/` immediately overrides skill default
-- Deleting a protocol from `/docs/` falls back to skill default
-- **Adding custom protocols to `/docs/protocol/_registry.json` makes them discoverable**
+- Editing a protocol in `.stackshift/protocol/` immediately overrides skill default
+- Deleting a protocol from `.stackshift/protocol/` falls back to skill default
+- **Adding custom protocols to `.stackshift/protocol/_registry.json` makes them discoverable**
 
 ---
 
@@ -134,8 +134,8 @@ Seeds follow standard strategies and load from skill when seeding is needed.
 **Before (old architecture):** Adding new protocols required re-bootstrapping to materialize them.
 
 **Now (registry-based):** Custom protocols via registry:
-- Add protocol file to `/docs/protocol/`
-- Register in `/docs/protocol/_registry.json`
+- Add protocol file to `.stackshift/protocol/`
+- Register in `.stackshift/protocol/_registry.json`
 - Protocol discovered on next workflow invocation
 - No re-bootstrap cycle needed
 

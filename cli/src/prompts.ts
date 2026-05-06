@@ -4,7 +4,7 @@ import type { ProtocolEntry, SkillEntry, SeedEntry } from './registry.js';
 export type ProtocolTier = 'required' | 'recommended' | 'full' | 'custom';
 export type SeedChoice = 'none' | string;
 export type ScopeChoice = 'project' | 'global';
-export type Platform = 'agents' | 'claude';
+export type Platform = 'agents' | 'claude' | 'copilot' | 'gemini' | 'cursor';
 
 export interface InstallChoices {
   protocolTier: ProtocolTier;
@@ -20,6 +20,11 @@ function assertNotCancelled(value: unknown): asserts value is NonNullable<typeof
     cancel('Installation cancelled.');
     process.exit(0);
   }
+}
+
+function shortenSummary(summary: string, maxLen = 72): string {
+  if (summary.length <= maxLen) return summary;
+  return summary.slice(0, maxLen - 1) + '…';
 }
 
 export async function runPrompts(
@@ -82,11 +87,11 @@ export async function runPrompts(
       );
 
       const chosen = await multiselect<string>({
-        message: 'Select additional protocols (required protocols always included):',
+        message: 'Select additional protocols (required always included):',
         options: selectableProtocols.map((p) => ({
           value: p.id,
           label: p.title,
-          hint: p.summary,
+          hint: `[${p.tier}] ${shortenSummary(p.summary)}`,
         })),
         required: false,
       });
@@ -142,10 +147,13 @@ export async function runPrompts(
   assertNotCancelled(scopeChoice);
 
   const platformChoices = await multiselect<Platform>({
-    message: 'Select platform(s) to install to:',
+    message: 'Select agentic platform(s) to install to:',
     options: [
-      { value: 'agents', label: 'Universal Agents (.agents/)', hint: 'recommended' },
-      { value: 'claude', label: 'Claude Code (.claude/)' },
+      { value: 'claude', label: 'Claude Code', hint: '.claude/skills/' },
+      { value: 'copilot', label: 'GitHub Copilot (Agent Mode)', hint: '.github/skills/' },
+      { value: 'agents', label: 'OpenAI Codex / Universal Agents', hint: '.agents/skills/' },
+      { value: 'gemini', label: 'Google Gemini (Antigravity)', hint: '.agents/skills/ · ~/.gemini/antigravity/skills/ (global)' },
+      { value: 'cursor', label: 'Cursor IDE', hint: '.cursor/skills/' },
     ],
     initialValues: ['agents'],
     required: true,
