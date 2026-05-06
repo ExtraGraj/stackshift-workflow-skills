@@ -147,14 +147,14 @@ Use this table to find the right file when the current workflow step or an error
 
 Protocols are discovered from **merged registries**:
 
-1. **Read project registry** (if exists): `.stackshift/protocol/_registry.json`
+1. **Read project registry** (if exists): `.stackshift/protocols/_registry.json`
 2. **Read skill registry**: `protocols/_registry.json`
 3. **Merge:** Project protocols take precedence over skill protocols with same ID
 4. **Load on-demand:** When protocol is needed, load from:
-   - `.stackshift/protocol/<id>.md` or `.stackshift/protocol/<id>/` (project)
+   - `.stackshift/protocols/<id>.md` or `.stackshift/protocols/<id>/` (project)
    - `protocols/<id>.md` or `protocols/<id>/` (skill fallback)
 
-**Custom protocols** registered in `.stackshift/protocol/_registry.json` are discovered alongside skill protocols.
+**Custom protocols** registered in `.stackshift/protocols/_registry.json` are discovered alongside skill protocols.
 
 ### Protocol Tiers
 
@@ -198,8 +198,8 @@ To add a custom protocol in your project:
 
 ### Simple Single-File Protocol
 
-1. Create protocol file: `.stackshift/protocol/custom-protocol-name.md`
-2. Register in `.stackshift/protocol/_registry.json`:
+1. Create protocol file: `.stackshift/protocols/custom-protocol-name.md`
+2. Register in `.stackshift/protocols/_registry.json`:
    ```json
    {
      "protocols": [
@@ -217,9 +217,9 @@ To add a custom protocol in your project:
 
 ### Complex Multi-File Protocol
 
-1. Copy template: `cp -r .stackshift/protocol/_template/ .stackshift/protocol/custom-protocol/`
-2. Edit files in `.stackshift/protocol/custom-protocol/` (overview.md, architecture.md, checklist.md, etc.)
-3. Register in `.stackshift/protocol/_registry.json` with `"dir": "custom-protocol/"`
+1. Copy template: `cp -r .stackshift/protocols/_template/ .stackshift/protocols/custom-protocol/`
+2. Edit files in `.stackshift/protocols/custom-protocol/` (overview.md, architecture.md, checklist.md, etc.)
+3. Register in `.stackshift/protocols/_registry.json` with `"dir": "custom-protocol/"`
 
 ### Custom References
 

@@ -17,6 +17,18 @@ Paired mode is detected by UI Forge when `.stackshift/installed.json` exists in 
 - UI Forge owns: variant body (JSX, classNames, library swaps, FORGE NOTES content).
 - Neither skill writes into the other's territory.
 
+### Named export exception (UI Forge ≥ 0.2.7A)
+
+The Variant Router contract requires every variant file to end with a named re-export:
+
+```typescript
+export { MySection_X };
+```
+
+Prior to UI Forge 0.2.7A, `validate-contract.js` flagged this as a violation (extra named export). From 0.2.7A onward, `validate-contract.js` auto-detects `.stackshift/installed.json` and exempts exactly one named export that matches the default export name. In non-paired mode, named exports remain forbidden.
+
+This is a behaviorally correct outcome — no StackShift changes are needed. This section exists so the rule is auditable in one place.
+
 ---
 
 ## Skill-root resolution (`${UI_FORGE_SKILL_DIR}`)

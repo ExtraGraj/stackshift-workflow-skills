@@ -216,14 +216,13 @@ function cleanupLockFile(lockPath: string, newBundleName: string): void {
 /**
  * Write .stackshift/installed.json marker for AI agent bootstrap.
  *
- * bootstrapDone = true  → CLI ran --bootstrap materialization; do NOT set bootstrapRequired.
- * bootstrapDone = false → Fresh install or re-install; set bootstrapRequired: true only when
- *                         this is a new project (marker didn't exist) or it still has the flag.
+ * materializationDone = true  → CLI ran materialization (default); set materializationDone: true.
+ * materializationDone = false → Materialization deferred; set bootstrapRequired: true.
  */
 function writeStackshiftMarker(
   choices: InstallChoices,
   allProtocols: ProtocolEntry[],
-  bootstrapDone: boolean,
+  materializationDone: boolean,
 ): void {
   if (choices.scope !== 'project') return;
 
@@ -268,8 +267,9 @@ function writeStackshiftMarker(
   const {
     seed: _prevSeed,
     bootstrapRequired: _prevBootstrapRequired,
+    materializationDone: _prevMaterializationDone,
     ...restExisting
-  } = existing as Record<string, unknown> & { seed?: string; bootstrapRequired?: boolean };
+  } = existing as Record<string, unknown> & { seed?: string; bootstrapRequired?: boolean; materializationDone?: boolean };
 
   const mode = choices.keepProtocol && existing.mode
     ? String(existing.mode)
@@ -284,16 +284,13 @@ function writeStackshiftMarker(
         return entry;
       });
 
-  // Set bootstrapRequired: true only for fresh installs or when it was already set (agent hasn't run yet)
-  const needsBootstrapRequired = !bootstrapDone && (!markerExisted || existing.bootstrapRequired === true);
-
   writeJsonAtomic(markerPath, {
     ...restExisting,
     skillVersion,
     installedAt: new Date().toISOString(),
     mode,
     protocols: protocolList,
-    ...(needsBootstrapRequired ? { bootstrapRequired: true } : {}),
+    ...(materializationDone ? { materializationDone: true } : { bootstrapRequired: true }),
     ...(choices.seed && choices.seed !== 'none' ? { seed: choices.seed } : {}),
   });
 }
@@ -302,7 +299,7 @@ function writeStackshiftMarker(
 // Bootstrap materialization — runs when --bootstrap flag is used
 // ---------------------------------------------------------------------------
 
-const STACKSHIFT_UI_MD = `# StackShift UI — Component Standards
+const STACKSHIFT_SECTION_VARIANTS_MD = `# StackShift Section Variants — Component Standards
 
 These conventions apply to every variant generated in this project.
 
@@ -358,6 +355,49 @@ design/.handoff-cache/
 design/claude-design-bundle/
 `;
 
+const PROTOCOLS_README = `# Project Protocols
+
+## Materialized from Skill
+
+The following protocols are included in this project. Edit them freely — your changes take precedence over the skill's defaults.
+
+Each protocol file is listed below with its purpose. To customize:
+
+1. Open the protocol file (e.g., \`variant-router.md\`)
+2. Make your edits
+3. Your copy is automatically used; skill defaults are ignored
+
+### How to Customize a Protocol
+
+Edit the corresponding markdown file in this directory. Your changes will take precedence over the skill's bundled defaults.
+
+## Add Custom Protocols
+
+To add a custom protocol:
+
+1. Create a new markdown file in this directory
+2. Add an entry to \`_registry.json\`:
+
+\`\`\`json
+{
+  "custom": [
+    {
+      "id": "my-custom-protocol",
+      "title": "My Custom Protocol",
+      "file": "my-custom-protocol.md",
+      "source": "project"
+    }
+  ]
+}
+\`\`\`
+
+## Structure
+
+- \`_registry.json\` — Registry of materialized and custom protocols
+- \`_template/\` — Starting point for creating complex multi-file protocols
+- Protocol files — Conventions and standards (edit freely)
+`;
+
 const REFERENCES_README = `# Custom References
 
 Add custom reference lookups here for project-specific protocols.
@@ -406,7 +446,7 @@ export function runBootstrapMaterialization(
     selectedProtocols = [...selectedProtocols, ...extras];
   }
 
-  const protocolTargetDir = join(cwd, '.stackshift', 'protocol');
+  const protocolTargetDir = join(cwd, '.stackshift', 'protocols');
   const referencesTargetDir = join(cwd, '.stackshift', 'references');
   ensureDirSync(protocolTargetDir);
 
@@ -433,16 +473,35 @@ export function runBootstrapMaterialization(
     }
   }
 
-  // Step 5B — Write project protocol registry
+  // Step 5B — Write project protocol registry with materialized references
   const registryPath = join(protocolTargetDir, '_registry.json');
   if (!pathExistsSync(registryPath)) {
+    const materializedList = selectedProtocols.map(p => ({
+      id: p.id,
+      title: p.title,
+      tier: p.tier,
+      ...(p.file ? { file: p.file } : {}),
+      ...(p.dir ? { dir: p.dir } : {}),
+      source: 'skill',
+      customizable: true,
+    }));
     writeJsonAtomic(registryPath, {
-      protocols: [],
-      note: 'Add custom project protocols here. They will be discovered alongside skill protocols.',
+      materialized: materializedList,
+      custom: [],
+      note: 'Edit materialized protocols in this directory. Your edits take precedence over skill defaults.',
     });
-    result.created.push('.stackshift/protocol/_registry.json');
+    result.created.push('.stackshift/protocols/_registry.json');
   } else {
-    result.skipped.push('.stackshift/protocol/_registry.json');
+    result.skipped.push('.stackshift/protocols/_registry.json');
+  }
+
+  // Step 5B-extended — Create protocols README
+  const protocolsReadmePath = join(protocolTargetDir, 'README.md');
+  if (!pathExistsSync(protocolsReadmePath)) {
+    writeFileSync(protocolsReadmePath, PROTOCOLS_README, 'utf8');
+    result.created.push('.stackshift/protocols/README.md');
+  } else {
+    result.skipped.push('.stackshift/protocols/README.md');
   }
 
   // Step 5C — Copy protocol template
@@ -450,9 +509,9 @@ export function runBootstrapMaterialization(
   const templateDest = join(protocolTargetDir, '_template');
   if (!pathExistsSync(templateDest) && pathExistsSync(templateSrc)) {
     copySync(templateSrc, templateDest);
-    result.created.push('.stackshift/protocol/_template/');
+    result.created.push('.stackshift/protocols/_template/');
   } else if (pathExistsSync(templateDest)) {
-    result.skipped.push('.stackshift/protocol/_template/');
+    result.skipped.push('.stackshift/protocols/_template/');
   }
 
   // Step 5D — Create references directory
@@ -469,12 +528,12 @@ export function runBootstrapMaterialization(
   const designStandardsDir = join(cwd, 'design', 'standards');
   ensureDirSync(designStandardsDir);
 
-  const stackshiftUiPath = join(designStandardsDir, 'stackshift-ui.md');
-  if (!pathExistsSync(stackshiftUiPath)) {
-    writeFileSync(stackshiftUiPath, STACKSHIFT_UI_MD, 'utf8');
-    result.created.push('design/standards/stackshift-ui.md');
+  const stackshiftSectionVariantsPath = join(designStandardsDir, 'stackshift-section-variants.md');
+  if (!pathExistsSync(stackshiftSectionVariantsPath)) {
+    writeFileSync(stackshiftSectionVariantsPath, STACKSHIFT_SECTION_VARIANTS_MD, 'utf8');
+    result.created.push('design/standards/stackshift-section-variants.md');
   } else {
-    result.skipped.push('design/standards/stackshift-ui.md');
+    result.skipped.push('design/standards/stackshift-section-variants.md');
   }
 
   const hasBrandProtocol = selectedProtocols.some((p) => p.id === 'brand');
@@ -488,13 +547,54 @@ export function runBootstrapMaterialization(
     }
   }
 
-  // Step 8 — Write .forgeignore if not exists
+  // Step 8 — Write .forgeignore (append if exists, create if not)
   const forgeignorePath = join(cwd, '.forgeignore');
   if (!pathExistsSync(forgeignorePath)) {
     writeFileSync(forgeignorePath, FORGEIGNORE_CONTENT, 'utf8');
     result.created.push('.forgeignore');
   } else {
-    result.skipped.push('.forgeignore');
+    // File exists — append StackShift defaults if not already present
+    try {
+      const existing = readFileSync(forgeignorePath, 'utf8');
+      const lines = existing.split('\n').map((line) => line.trim());
+
+      // Check which sections are already present
+      const hasStackShiftDefaults = lines.some((line) =>
+        line.includes('StackShift') || line.includes('studio/') || line.includes('.sanity/')
+      );
+      const hasForgeIntegration = lines.some((line) =>
+        line.includes('UI Forge') || line.includes('.handoff-cache/') || line.includes('claude-design-bundle/')
+      );
+
+      let contentToAppend = '';
+      if (!hasStackShiftDefaults && !hasForgeIntegration) {
+        // Neither section present — append full content
+        contentToAppend = FORGEIGNORE_CONTENT;
+      } else if (!hasStackShiftDefaults && hasForgeIntegration) {
+        // Only UI Forge present — append only StackShift section
+        contentToAppend = '\n# StackShift — Sanity + Next.js defaults\nstudio/\n.sanity/\n.next/\ndist/\nbuild/\nout/\ncoverage/\n';
+      } else if (hasStackShiftDefaults && !hasForgeIntegration) {
+        // Only StackShift present — append only UI Forge section
+        contentToAppend = '\n# UI Forge — Claude Design integration (regeneratable artifacts)\ndesign/.handoff-cache/\ndesign/claude-design-bundle/\n';
+      }
+      // If both present, contentToAppend stays empty (skip)
+
+      if (contentToAppend) {
+        const needsNewline = existing.length > 0 && !existing.endsWith('\n');
+        writeFileSync(
+          forgeignorePath,
+          (needsNewline ? '\n' : '') + contentToAppend,
+          { flag: 'a', encoding: 'utf8' },
+        );
+        result.created.push('.forgeignore');
+      } else {
+        result.skipped.push('.forgeignore');
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`Warning: Could not update .forgeignore: ${message}`);
+      result.skipped.push('.forgeignore');
+    }
   }
 
   return result;
@@ -511,7 +611,7 @@ export function writeSelection(
   choices: InstallChoices,
   skills: SkillEntry[],
   allProtocols: ProtocolEntry[],
-  options: { bootstrapDone?: boolean } = {},
+  options: { materializationDone?: boolean } = {},
 ): InstallResult[] {
   const results: InstallResult[] = [];
   const now = new Date().toISOString();
@@ -572,7 +672,7 @@ export function writeSelection(
   }
 
   // Write .stackshift/installed.json
-  writeStackshiftMarker(choices, allProtocols, options.bootstrapDone ?? false);
+  writeStackshiftMarker(choices, allProtocols, options.materializationDone ?? false);
 
   return results;
 }

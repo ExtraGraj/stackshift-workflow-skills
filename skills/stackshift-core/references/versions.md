@@ -27,6 +27,7 @@
 | 0.1.5 — 0.1.7 | ≥0.1.1, <0.2.0 | Requires `CONVERT_VARIANT` signal (ui-forge ≥0.1.2) |
 | 0.1.8 | ≥0.1.8 | `SIGNAL_A11Y` via `a11yRequired` marker, `SIGNAL_BRAND` via `designStandards.brand`, pre-flight `--validate-input`, postcondition `validate-contract.js`. |
 | 0.1.9 (incl. 0.1.9A sync) | ≥0.1.9 | `paired-mode-contract` recommended; `claude-design-handoff` (`--handoff <url>`, `+CLAUDE_DESIGN`, `/forge-export-design`) and `auto-verify-hook` (`verify.js` single-arg + `// @contract` directive) optional. Skill-root resolution delegates to UI Forge `scripts/detect.sh`. Bootstrap captures and surfaces UI Forge's scan-fallback banner. Optional `_paired` mirror block in `design-arch.json`. |
+| 0.2.1 – 0.2.2 | ≥0.2.7 | Paired-mode named export fix (0.2.7A) — `export { ComponentName }` no longer flagged as violation. `design/standards/` auto-created by `scan.js` (0.2.7). `--mode body-only` FORGE NOTES placement spec fixed (0.2.7B). UTF-8 stdout fix for Windows redirects (0.2.7C). Next.js + Sanity image standard in UI Forge `references/standards/nextjs-image.md` (0.2.7D). Cross-platform CLI terminology updated (0.2.7E). |
 
 **Runtime check:** During bootstrap (Step 6e of `bootstrap/install.md`), StackShift reads `ui-forge`'s `skill.version` and compares against this table. A mismatch emits a non-fatal warning before the first Step 4 handoff.
 

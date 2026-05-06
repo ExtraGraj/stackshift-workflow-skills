@@ -12,8 +12,9 @@ The goal of bootstrap is to materialize selected protocols, create project infra
 Check for `.stackshift/installed.json` in the project root.
 
 - **Does not exist** → continue.
-- **Exists with `"bootstrapRequired": true`** → the CLI installed skills but bootstrap has not yet run. Continue from Step 2.
-- **Exists without `bootstrapRequired`** → skill is already bootstrapped. Skip this file and return to the workflow.
+- **Exists with `"bootstrapRequired": true` (legacy) or `"materializationDone": false`** → the CLI installed skills but bootstrap has not yet run. Continue from Step 2.
+- **Exists with `"materializationDone": true`** → CLI materialized protocols; skip to Step 6 (UI Forge integration only).
+- **Exists without either field** → skill is already fully bootstrapped. Skip this file and return to the workflow.
 
 ---
 
@@ -74,12 +75,12 @@ For each selected protocol:
 ```
 if entry.file is set:
   source:      <skill>/protocols/<entry.file>
-  destination: <project>/.stackshift/protocol/<entry.file>
+  destination: <project>/.stackshift/protocols/<entry.file>
   action:      copy as single file
 
 if entry.dir is set:
   source:      <skill>/protocols/<entry.dir>/
-  destination: <project>/.stackshift/protocol/<entry.dir>/
+  destination: <project>/.stackshift/protocols/<entry.dir>/
   action:      copy directory recursively
 ```
 
@@ -89,7 +90,7 @@ if entry.dir is set:
 
 ### B. Create Project Protocol Registry
 
-Create `<project>/.stackshift/protocol/_registry.json`:
+Create `<project>/.stackshift/protocols/_registry.json`:
 
 ```json
 {
@@ -102,7 +103,7 @@ This empty registry allows teams to add custom protocols that are discovered alo
 
 ### C. Copy Protocol Template
 
-Copy `<skill>/protocols/_template/` → `<project>/.stackshift/protocol/_template/` recursively.
+Copy `<skill>/protocols/_template/` → `<project>/.stackshift/protocols/_template/` recursively.
 
 This provides a starting point for creating complex multi-file protocols.
 
@@ -153,28 +154,45 @@ Note: No seed directory is created — seeds load from skill on demand.
 
 ## Step 6 — Bridge `designStandards` for `ui-forge`
 
+⚠️ **Note:** Step 6f (seeding design/standards) runs during pre-bootstrap (CLI).
+Steps 6a–6e run during full bootstrap (AI agent). Both may overlap if you use `--materialize`.
+
 After protocols are materialized, bridge the `variant-router` protocol (and any component-rendering protocols) into the `designStandards` field that `ui-forge` reads from `design/design-arch.json`.
 
 ### 6a — Build the `designStandards` payload
 
-Scan the materialized protocols for component-rendering relevance. At minimum, include the `variant-router` protocol. Use `design/standards/stackshift-ui.md` as the primary standards path if it exists (created in Step 6f below); fall back to the materialized protocol file for backwards compatibility with projects that pre-date v0.1.8.
+The workflow uses two files for variant generation rules:
+
+1. **Variant Router** (`.stackshift/protocols/variant-router.md`)
+   - Protocol: Defines the structure of section index.tsx
+   - Always materialized (required protocol)
+   - UI Forge reads this to understand how variants are wired
+
+2. **Section Variants Standards** (`./design/standards/stackshift-section-variants.md`)
+   - Conventions: Coding standards and import rules for variant files
+   - Created during pre-bootstrap (Step 6f, CLI)
+   - UI Forge reads this during variant generation to apply style conventions
+
+### Variant Reference Building
+
+Scan the materialized protocols for component-rendering relevance. At minimum, include the `variant-router` protocol. Use `design/standards/stackshift-section-variants.md` as the primary standards path if it exists (created in Step 6f below); fall back to the materialized protocol file for backwards compatibility with projects that pre-date v0.1.8.
 
 ```json
 {
   "designStandards": {
-    "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md",
-    "stackshiftComponentStandard": "./design/standards/stackshift-ui.md"
+    "stackshiftVariantRouter": "./.stackshift/protocols/variant-router.md",
+    "stackshiftComponentStandard": "./design/standards/stackshift-section-variants.md"
   }
 }
 ```
 
-If `design/standards/stackshift-ui.md` does not exist (e.g. bootstrap was skipped or project pre-dates v0.1.8), fall back to:
+If `design/standards/stackshift-section-variants.md` does not exist (e.g. bootstrap was skipped or project pre-dates v0.1.8), fall back to:
 
 ```json
 {
   "designStandards": {
-    "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md",
-    "stackshiftComponentStandard": "./.stackshift/protocol/variant-router.md"
+    "stackshiftVariantRouter": "./.stackshift/protocols/variant-router.md",
+    "stackshiftComponentStandard": "./.stackshift/protocols/variant-router.md"
   }
 }
 ```
@@ -184,8 +202,8 @@ If the `brand` protocol is in the materialized set, add it to the payload:
 ```json
 {
   "designStandards": {
-    "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md",
-    "stackshiftComponentStandard": "./design/standards/stackshift-ui.md",
+    "stackshiftVariantRouter": "./.stackshift/protocols/variant-router.md",
+    "stackshiftComponentStandard": "./design/standards/stackshift-section-variants.md",
     "brand": "./design/standards/brand.md"
   }
 }
@@ -202,7 +220,7 @@ Check for `design/design-arch.json` at the project root:
 {
   "pendingDesignArchBridge": {
     "designStandards": {
-      "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md"
+      "stackshiftVariantRouter": "./.stackshift/protocols/variant-router.md"
     }
   }
 }
@@ -311,11 +329,16 @@ After detecting `ui-forge`, read its `skill.version` file and compare against th
 
 ### 6f — Seed `design/standards/`
 
+**When pre-bootstrap is used:** This step runs in the CLI.
+**When full bootstrap is used:** This step runs in the AI agent.
+
 Create the `design/standards/` directory if it does not exist.
 
-**`design/standards/stackshift-ui.md`** (skip if file exists):
+**`design/standards/stackshift-section-variants.md`** (skip if file exists):
 
 Write this file with the StackShift-UI conventions UI Forge needs to read during generation:
+
+> *(UI Forge ≥ 0.2.7: `scan.js` creates `design/standards/` automatically — directory is guaranteed to exist after Step 6c completes. Write files directly; if the directory does not exist, create it.)*
 
 ```markdown
 # StackShift UI — Component Standards
@@ -456,8 +479,8 @@ The file can eventually hold additional fields written by the AI agent at bootst
   "a11yRequired": true,
   "pendingDesignArchBridge": {
     "designStandards": {
-      "stackshiftVariantRouter": "./.stackshift/protocol/variant-router.md",
-      "stackshiftComponentStandard": "./design/standards/stackshift-ui.md"
+      "stackshiftVariantRouter": "./.stackshift/protocols/variant-router.md",
+      "stackshiftComponentStandard": "./design/standards/stackshift-section-variants.md"
     }
   },
   "uiForgeIntegration": {
@@ -563,7 +586,7 @@ See `protocols/auto-verify-hook.md` for runtime behavior.
 
 ## Step 8 — Write `.forgeignore` defaults
 
-If `.forgeignore` already exists at the project root, do nothing — the file is user-authored and must not be overwritten.
+**Idempotency:** If `.forgeignore` already exists, StackShift appends its defaults (Sanity + Next.js + UI Forge entries) to the file. Duplicate entries are detected and skipped to prevent redundancy. User-authored content is never removed or overwritten.
 
 If it does not exist, create it with Sanity + Next.js defaults:
 
@@ -582,11 +605,16 @@ design/.handoff-cache/
 design/claude-design-bundle/
 ```
 
-The two Claude Design entries cover the cache produced by `--handoff` and the export produced by `/forge-export-design`. Both are regenerated on demand and should not be committed — adding them here also keeps UI Forge's `scan.js` from descending into them.
-
 This prevents UI Forge's `scan.js` from walking build artifacts, Sanity Studio internals, and output directories during project scanning. User edits to this file always take precedence — UI Forge's ignore-file resolution gives `.forgeignore` the highest project-level priority.
 
-**Field ownership note:** `.forgeignore` is written once during bootstrap. It is never overwritten on subsequent invocations.
+### Design Integration Entries
+
+The following entries prevent UI Forge's `scan.js` from descending into regeneratable design artifacts (cache and exports that are recreated on demand):
+
+- `design/.handoff-cache/` — Cache from `/forge-export-design --handoff`
+- `design/claude-design-bundle/` — Design tokens exported for Claude Design
+
+If your project doesn't use UI Forge, you may remove these entries.
 
 ---
 
@@ -596,11 +624,11 @@ Print a summary:
 
 ```
 Bootstrapped StackShift skill (mode: recommended)
-  .stackshift/protocol/          ← [N] protocols ([r] required, [rec] recommended)
-  .stackshift/protocol/_registry.json  ← Project protocol registry (empty)
-  .stackshift/protocol/_template/      ← Complex protocol template
+  .stackshift/protocols/          ← [N] protocols ([r] required, [rec] recommended)
+  .stackshift/protocols/_registry.json  ← Project protocol registry (empty)
+  .stackshift/protocols/_template/      ← Complex protocol template
   .stackshift/references/        ← Custom reference lookups (empty)
-  design/standards/              ← stackshift-ui.md [+ brand.md if brand protocol]
+  design/standards/              ← stackshift-section-variants.md [+ brand.md if brand protocol]
   design/claude-design-bundle/   ← [exported / pending / N/A]
   .forgeignore                   ← [written / already exists]
   .claude/settings.json          ← [PostToolUse hook installed / N/A]
@@ -616,10 +644,10 @@ ui-forge integration:            ← [detected / not found]
 If UI Forge's scan emitted a fallback banner (Step 6c), append it here verbatim under a `Scan synthesis fallback:` heading so the user sees it inline.
 
 ```
-Edit protocols under .stackshift/protocol/ freely. Your edits take precedence over
+Edit protocols under .stackshift/protocols/ freely. Your edits take precedence over
 the skill's defaults at lookup time.
 
-Add custom protocols to .stackshift/protocol/_registry.json for discovery.
+Add custom protocols to .stackshift/protocols/_registry.json for discovery.
 ```
 
 Return to the workflow step the user originally invoked. Do not treat bootstrap as the answer to their actual request.
@@ -630,5 +658,5 @@ Return to the workflow step the user originally invoked. Do not treat bootstrap 
 
 - Running bootstrap when `.stackshift/installed.json` exists **without** `bootstrapRequired: true` is a no-op.
 - Bootstrap runs once per project. The CLI sets `bootstrapRequired: true` on fresh installs as a signal for the agent to run bootstrap on first invocation.
-- New protocols can be added directly to `.stackshift/protocol/_registry.json` for discovery.
+- New protocols can be added directly to `.stackshift/protocols/_registry.json` for discovery.
 - If project infrastructure files (_registry.json, _template/, references/) are missing, they can be re-created manually by copying from skill or running bootstrap again after deleting the marker file.

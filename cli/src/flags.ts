@@ -6,6 +6,8 @@ export interface Flags {
   platforms?: Platform[];
   seed?: string;
   noInteractive?: boolean;
+  materialize?: boolean;
+  noMaterialize?: boolean;
   bootstrap?: boolean;
   help?: boolean;
 }
@@ -86,6 +88,14 @@ export function parseFlags(args: string[]): Flags {
         }
         break;
 
+      case '--materialize':
+        flags.materialize = true;
+        break;
+
+      case '--no-materialize':
+        flags.noMaterialize = true;
+        break;
+
       case '--bootstrap':
         flags.bootstrap = true;
         break;
@@ -161,10 +171,14 @@ OPTIONS:
                                         Use comma-separated for multiple: claude,agents
   --seed <id|none>                      Seeding strategy id, or 'none' (default: none)
                                         Example: --seed initialvalue-seeding
-  --bootstrap                           Run protocol materialization after install.
-                                        Copies selected protocols to .stackshift/protocol/,
+  --materialize                         Materialize protocols after install (default behavior).
+                                        Copies selected protocols to .stackshift/protocols/,
                                         creates .stackshift/references/, design/standards/,
-                                        and .forgeignore. Skips UI Forge steps (agent handles those).
+                                        and .forgeignore. UI Forge integration steps run on
+                                        first AI agent invocation.
+  --no-materialize                      Skip CLI materialization; defer all steps to AI agent.
+                                        Useful for fully automated flows.
+  --bootstrap                           (Deprecated: use --materialize instead)
   --no-interactive                      Skip prompts, use flags + defaults
   --help, -h                            Show this help
 

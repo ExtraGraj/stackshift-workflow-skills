@@ -236,7 +236,7 @@ This check confirms the props interface is well-formed and its name can be extra
 
 Two invocation paths are supported. Choose based on runtime.
 
-**Claude Code (preferred when `.claude/` directory exists):**
+**Slash Commands / Agentic CLI (preferred — Claude Code, AntiGravity, or any agentic platform with `.claude/` directory):**
 
 ```
 /forge --task "Generate body for <VariantName> variant of <SectionName> section. \
@@ -250,7 +250,7 @@ Two invocation paths are supported. Choose based on runtime.
 
 The slash command routes through `$CLAUDE_PLUGIN_ROOT` and is equivalent to the bash form below. Requires UI Forge ≥ 0.1.9.
 
-**General agents / UI Forge < 0.1.9:**
+**Universal agent invocation (all platforms, or UI Forge < 0.1.9):**
 
 ```bash
 node ${UI_FORGE_SKILL_DIR}/scripts/invoke.js \
@@ -322,7 +322,9 @@ Run these checks **after** `ui-forge` returns. All must pass.
 > **When the `auto-verify-hook` protocol is active**, the PostToolUse hook fires automatically on the variant write and runs UI Forge's `verify.js` (which delegates to `validate.js` from `@extragraj/variant-contract`). The structural postcondition becomes "hook exit code 0" — no separate command. The manual `validate-contract.js` invocation remains valid as a backup or for non-Claude-Code runtimes. See `protocols/auto-verify-hook.md`.
 
 **StackShift-specific (manual):**
-- [ ] Variant file begins with `// FORGE NOTES` header
+- [ ] `// FORGE NOTES` header is present:
+  - **Full mode (default):** file begins with `// FORGE NOTES`
+  - **Body-only mode (`--mode body-only`):** `// FORGE NOTES` appears immediately after the last import statement (UI Forge ≥ 0.2.7B)
 - [ ] `// @contract <path-to-types.ts>` directive present on line 3 of FORGE NOTES (UI Forge ≥ 0.1.9 — required by `SIGNAL_VARIANT`; consumed by the auto-verify hook to resolve the contract path)
 - [ ] `index.tsx` is bytewise unchanged (diff against git if possible)
 - [ ] No new files written outside `components/sections/<name>/`

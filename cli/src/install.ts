@@ -164,10 +164,13 @@ export async function install(): Promise<void> {
       process.exit(1);
     }
 
+    // Determine if we should materialize (default: yes, unless --no-materialize is set)
+    const shouldMaterialize = !flags.noMaterialize;
+
     const s2 = spinner();
     s2.start('Installing...');
     const results = writeSelection(choices, skills, protocolRegistry.protocols, {
-      bootstrapDone: flags.bootstrap === true,
+      materializationDone: shouldMaterialize,
     });
     s2.stop('Installation complete');
 
@@ -179,12 +182,12 @@ export async function install(): Promise<void> {
     validateWriteResults(choices, results);
     reportCrossPlatformSync(choices, results);
 
-    // Run bootstrap materialization if --bootstrap flag set
-    if (flags.bootstrap) {
+    // Run bootstrap materialization by default (unless --no-materialize is set)
+    if (shouldMaterialize) {
       const bs = spinner();
-      bs.start('Running bootstrap materialization...');
+      bs.start('Running materialization...');
       const bsResult = runBootstrapMaterialization(choices, protocolRegistry.protocols);
-      bs.stop('Bootstrap complete');
+      bs.stop('Materialization complete');
 
       const lines: string[] = [];
       if (bsResult.materialized.length > 0)
@@ -195,13 +198,27 @@ export async function install(): Promise<void> {
         lines.push(`Skipped (already exists): ${bsResult.skipped.join(', ')}`);
 
       note(
-        lines.length > 0 ? lines.join('\n') : 'No files to materialize.',
-        'Bootstrap',
+        '✅ Materialization complete (CLI phase)\n' +
+        '   • Protocols materialized to .stackshift/protocols/\n' +
+        '   • Project registries created\n' +
+        '   • design/standards/ initialized\n' +
+        '   • .forgeignore written',
+        'Materialization',
       );
       note(
-        'UI Forge integration (design-arch.json bridge, PostToolUse hook) runs\n' +
-        'on first AI agent invocation — those steps require the agent runtime.',
-        'Remaining bootstrap steps',
+        '⏳ Remaining bootstrap steps (require AI agent):\n' +
+        '   • UI Forge detection & integration\n' +
+        '   • design-arch.json bridging\n' +
+        '   • PostToolUse hook installation\n\n' +
+        '→ Run your AI agent to complete bootstrap',
+        'Next steps',
+      );
+    } else {
+      note(
+        'All bootstrap steps (file materialization, UI Forge integration, hooks)\n' +
+        'will run on first AI agent invocation.\n\n' +
+        'To materialize files later, run: npx stackshift init --materialize',
+        'Bootstrap deferred',
       );
     }
 
@@ -262,10 +279,13 @@ export async function install(): Promise<void> {
     existingSeed,
   );
 
+  // Determine if we should materialize (default: yes, unless --no-materialize is set)
+  const shouldMaterialize = !flags.noMaterialize;
+
   const s3 = spinner();
   s3.start('Installing...');
   const results = writeSelection(choices, skills, protocolRegistry.protocols, {
-    bootstrapDone: flags.bootstrap === true,
+    materializationDone: shouldMaterialize,
   });
   s3.stop('Installation complete');
 
@@ -277,12 +297,12 @@ export async function install(): Promise<void> {
   validateWriteResults(choices, results);
   reportCrossPlatformSync(choices, results);
 
-  // Run bootstrap materialization if --bootstrap flag set
-  if (flags.bootstrap) {
+  // Run bootstrap materialization by default (unless --no-materialize is set)
+  if (shouldMaterialize) {
     const bs = spinner();
-    bs.start('Running bootstrap materialization...');
+    bs.start('Running materialization...');
     const bsResult = runBootstrapMaterialization(choices, protocolRegistry.protocols);
-    bs.stop('Bootstrap complete');
+    bs.stop('Materialization complete');
 
     const lines: string[] = [];
     if (bsResult.materialized.length > 0)
@@ -293,13 +313,27 @@ export async function install(): Promise<void> {
       lines.push(`Skipped (already exists): ${bsResult.skipped.join(', ')}`);
 
     note(
-      lines.length > 0 ? lines.join('\n') : 'No files to materialize.',
-      'Bootstrap',
+      '✅ Materialization complete (CLI phase)\n' +
+      '   • Protocols materialized to .stackshift/protocols/\n' +
+      '   • Project registries created\n' +
+      '   • design/standards/ initialized\n' +
+      '   • .forgeignore written',
+      'Materialization',
     );
     note(
-      'UI Forge integration (design-arch.json bridge, PostToolUse hook) runs\n' +
-      'on first AI agent invocation — those steps require the agent runtime.',
-      'Remaining bootstrap steps',
+      '⏳ Remaining bootstrap steps (require AI agent):\n' +
+      '   • UI Forge detection & integration\n' +
+      '   • design-arch.json bridging\n' +
+      '   • PostToolUse hook installation\n\n' +
+      '→ Run your AI agent to complete bootstrap',
+      'Next steps',
+    );
+  } else {
+    note(
+      'All bootstrap steps (file materialization, UI Forge integration, hooks)\n' +
+      'will run on first AI agent invocation.\n\n' +
+      'To materialize files later, run: npx stackshift init --materialize',
+      'Bootstrap deferred',
     );
   }
 
