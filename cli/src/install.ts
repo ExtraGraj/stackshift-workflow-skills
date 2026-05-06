@@ -194,15 +194,24 @@ export async function install(): Promise<void> {
         lines.push(`Materialized: ${bsResult.materialized.join(', ')}`);
       if (bsResult.created.length > 0)
         lines.push(`Created: ${bsResult.created.join(', ')}`);
+      if (bsResult.updated.length > 0)
+        lines.push(`Updated: ${bsResult.updated.join(', ')}`);
+      if (bsResult.removed.length > 0)
+        lines.push(`Removed (stale): ${bsResult.removed.join(', ')}`);
       if (bsResult.skipped.length > 0)
         lines.push(`Skipped (already exists): ${bsResult.skipped.join(', ')}`);
+
+      const removedNote = bsResult.removed.length > 0
+        ? `\n   • Removed ${bsResult.removed.length} stale protocol(s): ${bsResult.removed.join(', ')}`
+        : '';
 
       note(
         '✅ Materialization complete (CLI phase)\n' +
         '   • Protocols materialized to .stackshift/protocols/\n' +
         '   • Project registries created\n' +
         '   • design/standards/ initialized\n' +
-        '   • .forgeignore written',
+        '   • .forgeignore written' +
+        removedNote,
         'Materialization',
       );
       note(
@@ -309,15 +318,24 @@ export async function install(): Promise<void> {
       lines.push(`Materialized: ${bsResult.materialized.join(', ')}`);
     if (bsResult.created.length > 0)
       lines.push(`Created: ${bsResult.created.join(', ')}`);
+    if (bsResult.updated.length > 0)
+      lines.push(`Updated: ${bsResult.updated.join(', ')}`);
+    if (bsResult.removed.length > 0)
+      lines.push(`Removed (stale): ${bsResult.removed.join(', ')}`);
     if (bsResult.skipped.length > 0)
       lines.push(`Skipped (already exists): ${bsResult.skipped.join(', ')}`);
+
+    const removedNote = bsResult.removed.length > 0
+      ? `\n   • Removed ${bsResult.removed.length} stale protocol(s): ${bsResult.removed.join(', ')}`
+      : '';
 
     note(
       '✅ Materialization complete (CLI phase)\n' +
       '   • Protocols materialized to .stackshift/protocols/\n' +
       '   • Project registries created\n' +
       '   • design/standards/ initialized\n' +
-      '   • .forgeignore written',
+      '   • .forgeignore written' +
+      removedNote,
       'Materialization',
     );
     note(

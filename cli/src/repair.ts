@@ -1,12 +1,12 @@
 import { intro, outro, select, spinner, note } from '@clack/prompts';
 import fsExtra from 'fs-extra';
-const { readdirSync, pathExistsSync, removeSync, readJsonSync, writeJsonSync, readFileSync } = fsExtra;
+const { readdirSync, pathExistsSync, removeSync, readJsonSync, writeJsonSync, readFileSync, copySync, ensureDirSync } = fsExtra;
 import { renameSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { fileURLToPath } from 'url';
 import { resolve } from 'path';
-import { loadSeedRegistry } from './registry.js';
+import { loadSeedRegistry, loadProtocolRegistry } from './registry.js';
 import type { SeedEntry } from './registry.js';
 
 /**
@@ -21,6 +21,7 @@ function writeJsonAtomic(filePath: string, data: unknown): void {
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const skillVersionPath = resolve(__dirname, '../../skill.version');
+const skillProtocolsDir = resolve(__dirname, '../../skills/stackshift-core/protocols');
 
 interface LockEntry {
   name: string;
@@ -478,6 +479,147 @@ export async function repair(): Promise<void> {
       `Run: npx @extragraj/stackshift-skills init to select a valid seed.`,
       'Seed validation warning'
     );
+  }
+
+  // ── Materialized protocol reconciliation ─────────────────────────────────────
+
+  const stackshiftProtocolsDir = join(process.cwd(), '.stackshift', 'protocols');
+  const installedMarker = join(process.cwd(), '.stackshift', 'installed.json');
+
+  // Maps protocol ID → design/standards/ files seeded conditionally for that protocol.
+  // Must stay in sync with the same map in writer.ts.
+  const PROTOCOL_DESIGN_STANDARDS: Record<string, string[]> = {
+    brand: ['brand.md'],
+  };
+
+  if (pathExistsSync(stackshiftProtocolsDir) && pathExistsSync(installedMarker)) {
+    const s4 = spinner();
+    s4.start('Reconciling materialized protocols with installed.json');
+
+    try {
+      const installedData = readJsonSync(installedMarker) as InstalledJson;
+      const recordedProtocols = installedData.protocols ?? [];
+      const allProtocols = loadProtocolRegistry().protocols;
+
+      if (recordedProtocols.length === 0) {
+        s4.stop('Protocol reconciliation skipped');
+        outroLines.push('✓ No protocols recorded in installed.json — skipping reconciliation');
+      } else {
+        const recordedIdSet = new Set<string>(recordedProtocols.map(p => p.id));
+        const recordedFileSet = new Set<string>();
+        const recordedDirSet = new Set<string>();
+        for (const p of recordedProtocols) {
+          if (p.file) recordedFileSet.add(p.file);
+          if (p.dir) recordedDirSet.add(p.dir);
+        }
+
+        // Find orphans in .stackshift/protocols/: known protocol files/dirs on disk NOT in recorded list
+        const orphans: Array<{ name: string; path: string }> = [];
+        for (const protocol of allProtocols) {
+          if (protocol.file && !recordedFileSet.has(protocol.file)) {
+            const destPath = join(stackshiftProtocolsDir, protocol.file);
+            if (pathExistsSync(destPath)) {
+              orphans.push({ name: protocol.file, path: destPath });
+            }
+          } else if (protocol.dir && !recordedDirSet.has(protocol.dir)) {
+            const destPath = join(stackshiftProtocolsDir, protocol.dir);
+            if (pathExistsSync(destPath)) {
+              orphans.push({ name: protocol.dir + '/', path: destPath });
+            }
+          }
+
+          // Find orphans in design/standards/: seeded files whose protocol is not recorded
+          if (!recordedIdSet.has(protocol.id)) {
+            const stdFiles = PROTOCOL_DESIGN_STANDARDS[protocol.id];
+            if (stdFiles) {
+              const designStandardsDir = join(process.cwd(), 'design', 'standards');
+              for (const stdFile of stdFiles) {
+                const destPath = join(designStandardsDir, stdFile);
+                if (pathExistsSync(destPath)) {
+                  orphans.push({ name: `design/standards/${stdFile}`, path: destPath });
+                }
+              }
+            }
+          }
+        }
+
+        // Find missing: recorded protocols NOT on disk in .stackshift/protocols/
+        const missing: Array<{ name: string; srcPath: string; destPath: string; isDir: boolean }> = [];
+        for (const p of recordedProtocols) {
+          if (p.file) {
+            const destPath = join(stackshiftProtocolsDir, p.file);
+            const srcPath = join(skillProtocolsDir, p.file);
+            if (!pathExistsSync(destPath) && pathExistsSync(srcPath)) {
+              missing.push({ name: p.file, srcPath, destPath, isDir: false });
+            }
+          } else if (p.dir) {
+            const destPath = join(stackshiftProtocolsDir, p.dir);
+            const srcPath = join(skillProtocolsDir, p.dir);
+            if (!pathExistsSync(destPath) && pathExistsSync(srcPath)) {
+              missing.push({ name: p.dir + '/', srcPath, destPath, isDir: true });
+            }
+          }
+        }
+
+        s4.stop('Protocol scan complete');
+
+        if (orphans.length === 0 && missing.length === 0) {
+          outroLines.push('✓ Materialized protocols in sync with installed.json');
+        } else {
+          const s5 = spinner();
+          s5.start('Reconciling protocol files');
+
+          let removedCount = 0;
+          for (const orphan of orphans) {
+            try {
+              removeSync(orphan.path);
+              removedCount++;
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : String(err);
+              console.warn(`Warning: Could not remove ${orphan.name}: ${message}`);
+            }
+          }
+
+          let restoredCount = 0;
+          for (const entry of missing) {
+            try {
+              if (entry.isDir) {
+                ensureDirSync(entry.destPath);
+                copySync(entry.srcPath, entry.destPath, { overwrite: true });
+              } else {
+                copySync(entry.srcPath, entry.destPath);
+              }
+              restoredCount++;
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : String(err);
+              console.warn(`Warning: Could not restore ${entry.name}: ${message}`);
+            }
+          }
+
+          s5.stop('Protocol reconciliation complete');
+
+          const parts: string[] = [];
+          if (orphans.length > 0) {
+            parts.push(
+              `${removedCount} orphan(s) removed (${orphans.map(o => o.name).join(', ')})`
+            );
+          }
+          if (missing.length > 0) {
+            parts.push(
+              `${restoredCount} missing protocol(s) restored (${missing.map(m => m.name).join(', ')})`
+            );
+          }
+          outroLines.push(`✓ Protocol reconciliation: ${parts.join('; ')}`);
+        }
+      }
+    } catch (err: unknown) {
+      s4.stop('Protocol reconciliation skipped');
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`Warning: Protocol reconciliation failed — ${message}`);
+      outroLines.push('⚠ Protocol reconciliation could not complete — check .stackshift/installed.json');
+    }
+  } else if (!pathExistsSync(stackshiftProtocolsDir)) {
+    // No protocols directory — nothing to reconcile
   }
 
   outro(outroLines.join('\n'));

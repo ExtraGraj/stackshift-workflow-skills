@@ -70,7 +70,33 @@ For **Interactive**, show a protocol selection prompt. Each item renders as `[ti
 
 ### A. Materialize Selected Protocols
 
-For each selected protocol:
+#### Reinstall / Mode Change Path
+
+Before materializing, check whether any protocol files already exist in `.stackshift/protocols/` from a previous bootstrap run. Read the previously recorded protocol list from `.stackshift/installed.json` (the `protocols` array) and compare it against the new selection.
+
+**If any protocols are on disk that are NOT in the new selection (stale protocols):**
+
+Prompt the user:
+
+```
+The following protocols are no longer in your selection: [list].
+These files may contain your customizations. Remove them? (y/N)
+```
+
+- **Yes:** delete each stale file or directory from `.stackshift/protocols/`. Also remove any `design/standards/` files that were seeded conditionally for those protocols (see table below).
+- **No:** skip removal — stale protocols remain on disk and will continue to be loaded by the skill at lookup time.
+
+Protocols present in both the old and new selections are always skipped (preserved with any edits intact).
+
+**Protocol → `design/standards/` file mapping** (remove the standards file when the protocol is removed):
+
+| Protocol ID | `design/standards/` file |
+|---|---|
+| `brand` | `brand.md` |
+
+#### Materialization
+
+For each protocol in the new selection:
 
 ```
 if entry.file is set:

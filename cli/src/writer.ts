@@ -416,6 +416,8 @@ export interface BootstrapResult {
   materialized: string[];
   created: string[];
   skipped: string[];
+  removed: string[];
+  updated: string[];
 }
 
 /**
@@ -428,7 +430,7 @@ export function runBootstrapMaterialization(
   choices: InstallChoices,
   allProtocols: ProtocolEntry[],
 ): BootstrapResult {
-  const result: BootstrapResult = { materialized: [], created: [], skipped: [] };
+  const result: BootstrapResult = { materialized: [], created: [], skipped: [], removed: [], updated: [] };
   const cwd = process.cwd();
 
   // Build the selected protocol list
@@ -449,6 +451,72 @@ export function runBootstrapMaterialization(
   const protocolTargetDir = join(cwd, '.stackshift', 'protocols');
   const referencesTargetDir = join(cwd, '.stackshift', 'references');
   ensureDirSync(protocolTargetDir);
+
+  // Detect reinstall: marker already exists with materializationDone: true
+  const markerPath = join(cwd, '.stackshift', 'installed.json');
+  const isReinstall = pathExistsSync(markerPath) && (() => {
+    try {
+      const existing = readJsonSync(markerPath) as { materializationDone?: boolean };
+      return existing.materializationDone === true;
+    } catch { return false; }
+  })();
+
+  // Maps protocol ID → design/standards/ files created conditionally for that protocol.
+  // Update this map whenever a new protocol conditionally seeds a design/standards file.
+  const PROTOCOL_DESIGN_STANDARDS: Record<string, string[]> = {
+    brand: ['brand.md'],
+  };
+
+  // On reinstall: remove stale protocols (known protocols on disk NOT in new selection)
+  if (isReinstall) {
+    const selectedIds = new Set(selectedProtocols.map(p => p.id));
+    const staleProtocols = allProtocols.filter(p => !selectedIds.has(p.id));
+    const designStandardsDir = join(cwd, 'design', 'standards');
+
+    for (const protocol of staleProtocols) {
+      // Remove stale .stackshift/protocols/ files
+      if (protocol.file) {
+        const dest = join(protocolTargetDir, protocol.file);
+        if (pathExistsSync(dest)) {
+          try {
+            removeSync(dest);
+            result.removed.push(protocol.file);
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`Warning: Could not remove stale protocol ${protocol.file}: ${message}`);
+          }
+        }
+      } else if (protocol.dir) {
+        const dest = join(protocolTargetDir, protocol.dir);
+        if (pathExistsSync(dest)) {
+          try {
+            removeSync(dest);
+            result.removed.push(protocol.dir + '/');
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`Warning: Could not remove stale protocol dir ${protocol.dir}: ${message}`);
+          }
+        }
+      }
+
+      // Remove stale design/standards/ files seeded by this protocol
+      const stdFiles = PROTOCOL_DESIGN_STANDARDS[protocol.id];
+      if (stdFiles) {
+        for (const stdFile of stdFiles) {
+          const dest = join(designStandardsDir, stdFile);
+          if (pathExistsSync(dest)) {
+            try {
+              removeSync(dest);
+              result.removed.push(`design/standards/${stdFile}`);
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : String(err);
+              console.warn(`Warning: Could not remove stale design standard ${stdFile}: ${message}`);
+            }
+          }
+        }
+      }
+    }
+  }
 
   // Step 5A — Materialize selected protocols
   for (const protocol of selectedProtocols) {
@@ -473,24 +541,45 @@ export function runBootstrapMaterialization(
     }
   }
 
-  // Step 5B — Write project protocol registry with materialized references
+  // Step 5B — Write/update project protocol registry with materialized references
   const registryPath = join(protocolTargetDir, '_registry.json');
+  const materializedList = selectedProtocols.map(p => ({
+    id: p.id,
+    title: p.title,
+    tier: p.tier,
+    ...(p.file ? { file: p.file } : {}),
+    ...(p.dir ? { dir: p.dir } : {}),
+    source: 'skill',
+    customizable: true,
+  }));
+
   if (!pathExistsSync(registryPath)) {
-    const materializedList = selectedProtocols.map(p => ({
-      id: p.id,
-      title: p.title,
-      tier: p.tier,
-      ...(p.file ? { file: p.file } : {}),
-      ...(p.dir ? { dir: p.dir } : {}),
-      source: 'skill',
-      customizable: true,
-    }));
     writeJsonAtomic(registryPath, {
       materialized: materializedList,
       custom: [],
       note: 'Edit materialized protocols in this directory. Your edits take precedence over skill defaults.',
     });
     result.created.push('.stackshift/protocols/_registry.json');
+  } else if (isReinstall) {
+    // Update materialized list on reinstall, preserve custom entries
+    try {
+      const existingRegistry = readJsonSync(registryPath) as {
+        materialized?: unknown[];
+        custom?: unknown[];
+        note?: string;
+      };
+      writeJsonAtomic(registryPath, {
+        ...existingRegistry,
+        materialized: materializedList,
+      });
+    } catch {
+      writeJsonAtomic(registryPath, {
+        materialized: materializedList,
+        custom: [],
+        note: 'Edit materialized protocols in this directory. Your edits take precedence over skill defaults.',
+      });
+    }
+    result.updated.push('.stackshift/protocols/_registry.json');
   } else {
     result.skipped.push('.stackshift/protocols/_registry.json');
   }

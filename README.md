@@ -1,6 +1,6 @@
 # StackShift Skill
 
-> **Version** 0.2.3 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
+> **Version** 0.2.4 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
 
 A structured agentic skill for building sections and variants inside StackShift, a composable Sanity v3 and Next.js page-builder. Enforces a strict 5-step implementation workflow, governs quality through a tiered protocol system, supports seed strategies, and delegates component rendering to the `ui-forge` companion skill.
 
@@ -157,13 +157,17 @@ If different tiers are installed across platforms (e.g., `required` in `.agents/
 
 #### Repair Command
 
-If you encounter multi-tier or multi-seed installation issues (e.g., from using `npx skills add`), use the repair command:
+If you encounter multi-tier, multi-seed, or stale materialized protocol issues, use the repair command:
 
 ```bash
 npx @extragraj/stackshift-skills repair
 ```
 
-This scans for multiple protocol bundles and seed folders, helps you keep only one of each, and syncs `.stackshift/installed.json` to match.
+This command performs three reconciliation passes:
+
+1. **Protocol bundles** — scans for multiple `stackshift-protocols-*` folders across all platforms; if more than one is found, prompts you to keep one and removes the rest.
+2. **Seed folders** — scans for multiple `stackshift-seed-*` folders; if more than one is found, prompts you to keep one and removes the rest. Syncs `.stackshift/installed.json` to match.
+3. **Materialized protocols** — reconciles `.stackshift/protocols/` against the protocol list recorded in `.stackshift/installed.json`. Removes orphaned protocol files (known protocols on disk that are no longer recorded), and restores any recorded protocols that are missing from disk.
 
 ---
 
@@ -185,6 +189,8 @@ After installing via Option A or B:
 3. **Bootstrap marker** (`.stackshift/installed.json`) is written (project scope only)
    - **Default (materialization enabled):** marker includes `"materializationDone": true` — CLI materializes protocols; AI agent completes UI Forge integration
    - **With `--no-materialize`:** marker includes `"bootstrapRequired": true` — AI agent runs full interactive bootstrap on first invocation
+
+   **On reinstall (marker already exists with `materializationDone: true`):** the CLI computes a diff against the previous selection — stale protocol files no longer in the new tier are automatically removed from `.stackshift/protocols/`, the registry is updated, and newly selected protocols are materialized. Protocols present in both selections are preserved (user edits intact).
 
 4. **AI agent validation** on first invocation:
    - Checks for multiple protocol bundles (Option A safety check)
