@@ -36,7 +36,12 @@
         "file": { "type": "string" },
         "dir": { "type": "string" },
         "title": { "type": "string" },
-        "summary": { "type": "string" }
+        "summary": { "type": "string" },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional terms for keyword-based protocol discovery in SKILL.md cross-cutting section."
+        }
       },
       "oneOf": [
         { "required": ["file"] },

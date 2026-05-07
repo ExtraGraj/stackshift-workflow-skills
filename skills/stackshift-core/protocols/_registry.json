@@ -103,14 +103,16 @@
       "tier": "optional",
       "file": "auto-verify-hook.md",
       "title": "Auto-Verify Hook (PostToolUse)",
-      "summary": "Installs a Claude Code PostToolUse hook that runs UI Forge's verify.js on every variant write. Requires UI Forge ≥ 0.1.9."
+      "summary": "Installs a Claude Code PostToolUse hook that runs UI Forge's verify.js on every variant write. Requires UI Forge ≥ 0.1.9.",
+      "keywords": ["auto verify", "verify hook", "posttooluse", "verify on save"]
     },
     {
       "id": "modal-sheet",
       "tier": "optional",
       "dir": "modal-sheet",
       "title": "Modal & Sheet",
-      "summary": "Standalone modal documents linked via conditionalLink. Editors pick a modal ref; clicking opens a @stackshift-ui/sheet or @stackshift-ui/dialog overlay instead of navigating. One-time setup + per-variant workflow with UI Forge delegation."
+      "summary": "Standalone modal documents linked via conditionalLink. Editors pick a modal ref; clicking opens a @stackshift-ui/sheet or @stackshift-ui/dialog overlay instead of navigating. One-time setup + per-variant workflow with UI Forge delegation.",
+      "keywords": ["modal", "dialog", "sheet", "overlay", "popup", "conditional link", "modal ref"]
     }
   ]
 }

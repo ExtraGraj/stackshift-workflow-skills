@@ -172,6 +172,26 @@ A protocol entry can be:
 
 Use `_template/` as starting point for directory-based protocols.
 
+### Cross-Cutting Optional Protocols
+
+These protocols apply across multiple steps or may be invoked outside of any single workflow step. Check them once on every invocation using the two-stage process below.
+
+**Stage 1 — `installed.json` check:**
+1. Read `.stackshift/installed.json` → get the `protocols` array.
+2. For each protocol below: if its `id` is in the array, load and apply proactively.
+
+**Stage 2 — keyword discovery (fallback for protocols not in `installed.json`):**
+If the `id` is NOT in the array, check whether any keyword from the list appears in the user's current request (case-insensitive, whole-word or whole-phrase match). If matched: load, apply, and surface:
+`ℹ️ Applying optional protocol "[title]" — matched keyword "[keyword]" in your request.`
+If no match: skip.
+
+| Protocol | ID | Keywords |
+|---|---|---|
+| Auto-Verify Hook | `auto-verify-hook` | "auto verify", "verify hook", "posttooluse", "verify on save" |
+| Modal & Sheet | `modal-sheet` | "modal", "dialog", "sheet", "overlay", "popup", "conditional link", "modal ref" |
+
+**Note on `auto-verify-hook`:** Step 4 independently checks `installed.json` for this protocol to branch its postcondition path. This SKILL.md check handles setup queries only — do not apply postcondition logic here.
+
 ### Seed Discovery
 
 1. Read `.stackshift/installed.json` → check for `seed` field.

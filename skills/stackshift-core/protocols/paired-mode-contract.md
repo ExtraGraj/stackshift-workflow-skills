@@ -75,6 +75,17 @@ Two files mediate the handshake. Each field has a single owner — never both.
 | `designStandards.stackshiftComponentStandard` | bootstrap (Step 6a) | UI Forge `loadDesignStandards()` | Component conventions |
 | `designStandards.brand` | bootstrap (when `brand` selected) | UI Forge `detectSignals()` | Triggers `+BRAND` |
 
+### Design standards key disambiguation
+
+Two separate `designStandards` keys cover "StackShift" concerns. They serve different purposes and must not be confused:
+
+| Key | Written by | Points to | Purpose |
+|---|---|---|---|
+| `stackshift-ui` | UI Forge `scan.js` (when `--theme stackshift`) | skill-internal path or project copy of UI library standards | UI component library conventions — how `@stackshift-ui/<section>` components are structured |
+| `stackshift-section-variants` | StackShift bootstrap (Step 6a `stackshiftComponentStandard`) | `design/standards/stackshift-section-variants.md` | Variant coding rules — imports, null handling, function structure, TypeScript conventions for variant files |
+
+`invoke.js` loads both keys when present and injects them into variant generation context. Because the two keys cover different surfaces (library structure vs. variant authoring rules), they compose without duplication. However, any field in both would produce conflicting instructions — keep them non-overlapping.
+
 ### `_paired` mirror block (optional, additive)
 
 Bootstrap may write a denormalized mirror of relevant StackShift markers into `design/design-arch.json` so UI Forge can read everything from one surface:
@@ -91,6 +102,8 @@ Bootstrap may write a denormalized mirror of relevant StackShift markers into `d
 ```
 
 `_paired` is read-only from UI Forge's perspective. The canonical write target is still `.stackshift/installed.json`. Older UI Forge versions ignore unknown top-level keys, so this block is forward-compatible.
+
+**Known limitation (UI Forge < rescan-merge fix):** When `scan.js` re-runs, it overwrites `design-arch.json` and silently drops the `_paired` block. Paired-mode tooling that reads `design-arch.json` for StackShift markers will stop finding them until the next bootstrap pass re-writes the block. The fix belongs in UI Forge `scan.js` (preserve existing top-level keys not owned by scan). Until that fix ships, run bootstrap again after any UI Forge rescan to restore the `_paired` block.
 
 ---
 

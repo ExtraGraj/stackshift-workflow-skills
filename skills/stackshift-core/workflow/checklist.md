@@ -101,4 +101,4 @@ Skipping any of these will not break the build but will degrade the Sanity Studi
 
 ## Optional — only if the project adopts the system
 
-Check only if an optional protocol (e.g. modal-and-sheet, commerce, blog) is installed for this project. Each optional protocol ships its own checklist — consult `.stackshift/protocol/<protocol-name>/` for specifics.
+Check only if an optional protocol (e.g. modal-and-sheet, commerce, blog) is installed for this project. Each optional protocol ships its own checklist — consult `.stackshift/protocols/<protocol-name>/` for specifics.

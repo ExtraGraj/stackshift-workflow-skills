@@ -2,22 +2,25 @@
 
 > **Protocol Discovery for This Step:**
 >
-> Load protocols from merged registry (project + skill) where `appliesTo` includes Step 4:
-> 1. Read `.stackshift/protocol/_registry.json` (if exists)
-> 2. Read `protocols/_registry.json` from skill
-> 3. Merge registries (project protocols override skill protocols with same ID)
-> 4. Filter protocols: `tier === 'required'`
-> 5. Load each protocol from `.stackshift/protocol/<id>` (project) OR `protocols/<id>` (skill)
+> 1. Read `.stackshift/installed.json` → get the `protocols` array.
+>    If the file is missing, has no `protocols` array, or the array is not valid JSON, skip enforcement and continue — surface a single warning.
+> 2. For each protocol listed below, check if its `id` is present in that array.
+>    - If `tier: "required"` and present: load and enforce. Block on any violation before writing a file.
+>    - If `tier: "recommended"` and present: load and apply as guidance. Note violations, do not block.
+>    - If `tier: "optional"` and present: load and apply. Not present: skip.
 >
-> **Required protocols** (load and enforce):
-> - Variant Router — `index.tsx` rules: exported props interface, `null` fallback, `?? undefined` extraction
+> **Required (block on violation):**
+> - `variant-router` — Variant Router: `index.tsx` rules: exported props interface, `null` fallback, `?? undefined` extraction
 >
-> **Optional protocols** that, when active in the merged registry, modify this step:
-> - Accessibility — adds `A11Y` sub-block postcondition
-> - Brand — adds `BRAND` sub-block postcondition
-> - Claude Design Handoff — extends ref-selection rules to allow `--handoff <url>` and adds `CLAUDE_DESIGN` sub-block postcondition
-> - Auto-Verify Hook — collapses the manual `validate-contract.js` postcondition into an automatic PostToolUse run
-> - Paired-Mode Contract — canonical handshake reference; load when reviewing skill-root resolution, marker fields, or flag refusals
+> **Recommended (guidance only — do not block), if `id` is in `installed.json` array:**
+> - `accessibility` — Accessibility: adds A11Y postcondition; signals UI Forge to enforce WCAG 2.1 AA
+> - `paired-mode-contract` — Paired-Mode Contract: load as reference when reviewing handshake, marker fields, or flag refusals
+>
+> **Optional (load only if `id` is in `installed.json` protocols array):**
+> - `brand` — Brand: adds BRAND postcondition; signals UI Forge to apply brand rules from `design/standards/brand.md`
+> - `claude-design-handoff` — Claude Design Handoff: extends ref-selection rules to allow `--handoff <url>`; adds CLAUDE_DESIGN postcondition
+> - `auto-verify-hook` — Auto-Verify Hook: when active, postcondition becomes "hook exit code 0"; manual `validate-contract.js` invocation is the fallback for inactive or non-Claude-Code runtimes
+>   **See also:** SKILL.md cross-cutting section handles keyword discovery for setup queries. This block only governs the postcondition branch.
 
 > This is the ONLY step that delegates to `ui-forge`.
 > StackShift owns the wiring (index.tsx, props interface, dynamic import).

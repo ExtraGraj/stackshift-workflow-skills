@@ -93,8 +93,8 @@ When this protocol is in the materialized set:
 Selected during bootstrap (optional — unchecked by default in interactive mode).
 
 To add after initial bootstrap:
-1. Append the registry entry to `.stackshift/protocol/_registry.json` (`tier: "optional"`, `file: "claude-design-handoff.md"`).
-2. Copy `protocols/claude-design-handoff.md` from the skill bundle to `.stackshift/protocol/`.
+1. Append the registry entry to `.stackshift/protocols/_registry.json` (`tier: "optional"`, `file: "claude-design-handoff.md"`).
+2. Copy `protocols/claude-design-handoff.md` from the skill bundle to `.stackshift/protocols/`.
 3. Run `/forge-export-design` once to produce the upload bundle.
 
 Requires UI Forge ≥ 0.1.9. Older UI Forge versions do not understand `--handoff`.

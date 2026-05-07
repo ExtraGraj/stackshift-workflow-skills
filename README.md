@@ -1,6 +1,6 @@
 # StackShift Skill
 
-> **Version** 0.2.4 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
+> **Version** 0.2.5 | **Sanity** v3.17 | **Next.js** 14 Pages Router | **TypeScript** Strict
 
 A structured agentic skill for building sections and variants inside StackShift, a composable Sanity v3 and Next.js page-builder. Enforces a strict 5-step implementation workflow, governs quality through a tiered protocol system, supports seed strategies, and delegates component rendering to the `ui-forge` companion skill.
 
@@ -249,6 +249,8 @@ A tiered protocol system codifies team conventions and enables individual loadin
 | **Required** | Build errors, runtime errors, or schema load failures; workflow blocks until applied |
 | **Recommended** | No errors, but Sanity Studio UX or developer experience degrades noticeably; workflow mentions but does not block |
 | **Optional** | Opt-in systems with dedicated architecture; applicable only if project adopts them |
+
+Runtime enforcement reads the `protocols` array from `.stackshift/installed.json` — the resolved selection written by bootstrap. Each workflow step loads only the protocols whose `id` appears in that array, respecting the install mode the user chose. If the file is absent or the array is missing, enforcement is a no-op and the workflow continues. Cross-cutting optional protocols (`auto-verify-hook`, `modal-sheet`) are additionally discovered via keyword matching in SKILL.md when not in the installed array.
 
 ### Output Files by Step
 

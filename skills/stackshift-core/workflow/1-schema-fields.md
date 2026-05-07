@@ -2,19 +2,22 @@
 
 > **Protocol Discovery for This Step:**
 >
-> Load protocols from merged registry (project + skill) where `appliesTo` includes Step 1:
-> 1. Read `.stackshift/protocol/_registry.json` (if exists)
-> 2. Read `protocols/_registry.json` from skill
-> 3. Merge registries (project protocols override skill protocols with same ID)
-> 4. Filter protocols: `tier === 'required'` OR `tier === 'recommended'`
-> 5. Load each protocol from `.stackshift/protocol/<id>` (project) OR `protocols/<id>` (skill)
+> 1. Read `.stackshift/installed.json` → get the `protocols` array.
+>    If the file is missing, has no `protocols` array, or the array is not valid JSON, skip enforcement and continue — surface a single warning.
+> 2. For each protocol listed below, check if its `id` is present in that array.
+>    - If `tier: "required"` and present: load and enforce. Block on any violation before writing a file.
+>    - If `tier: "recommended"` and present: load and apply as guidance. Note violations, do not block.
+>    - If not present in the array: skip — the user did not install it.
 >
-> **Required protocols** (load and enforce):
-> - Factory Function Pattern — wrong shape breaks `hideInVariants` at runtime
-> - Sub-Field Visibility — duplicate field names crash schema load
+> **Required (block on violation):**
+> - `factory-function-pattern` — Factory Function Pattern: wrong shape breaks `hideInVariants` at runtime
+> - `sub-field-visibility` — Sub-Field Visibility: duplicate field names crash schema load
 >
-> **Recommended protocols** (load if present, but do not block):
-> - Field Reuse First · Hide If Variant · Preview Conventions · Array Layout
+> **Recommended (guidance only — do not block):**
+> - `field-reuse-first` — Field Reuse First
+> - `hide-if-variant` — Hide If Variant
+> - `preview-conventions` — Preview Conventions
+> - `array-layout` — Array Layout Conventions
 
 ---
 
@@ -55,7 +58,7 @@ These do not cause errors if skipped but noticeably degrade Sanity Studio UX:
 - **Add a `preview` block to every array of objects and every object field** — image or icon fallback, `prepare()` always returning a non-empty `title`. → `preview-conventions`
 - **Pick the right `options.layout` for arrays** — `grid` for images, `tags` for string arrays, collapsible for navs. → `array-layout`
 
-**Lookup order for the AI:** `.stackshift/protocol/<name>.md` in the project first, then `protocols/<name>.md` in the skill folder. Project docs win.
+**Lookup order for the AI:** `.stackshift/protocols/<name>.md` in the project first, then `protocols/<name>.md` in the skill folder. Project docs win.
 
 ---
 

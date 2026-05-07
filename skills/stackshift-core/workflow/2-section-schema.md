@@ -2,18 +2,18 @@
 
 > **Protocol Discovery for This Step:**
 >
-> Load protocols from merged registry (project + skill) where `appliesTo` includes Step 2:
-> 1. Read `.stackshift/protocol/_registry.json` (if exists)
-> 2. Read `protocols/_registry.json` from skill
-> 3. Merge registries (project protocols override skill protocols with same ID)
-> 4. Filter protocols: `tier === 'required'` OR `tier === 'recommended'`
-> 5. Load each protocol from `.stackshift/protocol/<id>` (project) OR `protocols/<id>` (skill)
+> 1. Read `.stackshift/installed.json` → get the `protocols` array.
+>    If the file is missing, has no `protocols` array, or the array is not valid JSON, skip enforcement and continue — surface a single warning.
+> 2. For each protocol listed below, check if its `id` is present in that array.
+>    - If `tier: "required"` and present: load and enforce. Block on any violation before writing a file.
+>    - If `tier: "recommended"` and present: load and apply as guidance. Note violations, do not block.
+>    - If not present in the array: skip — the user did not install it.
 >
-> **Required protocols** (load and enforce):
-> - One-Time Custom Schema Setup — run once per project, or custom sections never appear
+> **Required (block on violation):**
+> - `one-time-custom-schema-setup` — One-Time Custom Schema Setup: run once per project, or custom sections never appear
 >
-> **Recommended protocols** (load if present, but do not block):
-> - Section Directory Layout — covers `initialValue/` and `images/` directories
+> **Recommended (guidance only — do not block):**
+> - `section-directory-layout` — Section Directory Layout: covers `initialValue/` and `images/` directories
 
 ---
 
