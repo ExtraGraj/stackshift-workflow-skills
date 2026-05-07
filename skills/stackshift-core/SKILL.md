@@ -79,7 +79,8 @@ If installation is valid, check the project root for `.stackshift/installed.json
 
 - **Missing** → run `bootstrap/install.md`. Stop. Return here after user confirms.
 - **Present with `"bootstrapRequired": true`** → the CLI installed skills but bootstrap has not yet run. Run `bootstrap/install.md`. Stop. Return here after user confirms.
-- **Present without `bootstrapRequired`** → skip. Proceed to workflow.
+- **Present with `"materializationDone": true`** → the CLI materialized protocols. Run `bootstrap/install.md` to complete UI Forge integration steps (Step 6+) only. Stop. Return here after user confirms.
+- **Present without `bootstrapRequired` or `materializationDone`** → skip. Proceed to workflow.
 
 This materializes selected protocols, creates project infrastructure (_registry.json, _template/, references/), and enables custom protocol development.
 
@@ -212,38 +213,20 @@ Project references augment skill references without modifying them.
 
 ---
 
-## 4. Adding Custom Protocols (Project-Level)
+## 4. Custom Protocols (Project-Level)
 
-To add a custom protocol in your project:
+Custom protocols are project-specific conventions registered in `.stackshift/protocols/_registry.json`. They extend the standard protocol set without modifying skill files.
 
-### Simple Single-File Protocol
+**How they work:**
+- Custom protocols are discovered automatically via the Protocol Discovery mechanism in Section 3 — no special handling needed.
+- The project registry (`.stackshift/protocols/_registry.json`) is read first and merged with the skill registry (`protocols/_registry.json`). Project entries with the same `id` override skill entries.
+- Custom protocols follow the same structure as skill protocols: a registry entry with `id`, `tier`, `title`, `summary`, and either `file` or `dir`. Use `_template/` as a starting point for directory-based protocols.
 
-1. Create protocol file: `.stackshift/protocols/custom-protocol-name.md`
-2. Register in `.stackshift/protocols/_registry.json`:
-   ```json
-   {
-     "protocols": [
-       {
-         "id": "custom-protocol-name",
-         "tier": "recommended",
-         "file": "custom-protocol-name.md",
-         "title": "Custom Protocol Name",
-         "summary": "What this protocol governs"
-       }
-     ]
-   }
-   ```
-3. (Entry already added above — no second step needed)
+**When to apply:**
+- If the current step's protocol discovery includes a matching `id`, load and enforce/apply it as you would any skill protocol.
+- Custom references at `.stackshift/references/<name>.md` are also discovered automatically — see "Reference Augmentation" in Section 3.
 
-### Complex Multi-File Protocol
-
-1. Copy template: `cp -r .stackshift/protocols/_template/ .stackshift/protocols/custom-protocol/`
-2. Edit files in `.stackshift/protocols/custom-protocol/` (overview.md, architecture.md, checklist.md, etc.)
-3. Register in `.stackshift/protocols/_registry.json` with `"dir": "custom-protocol/"`
-
-### Custom References
-
-Add custom reference lookups in `.stackshift/references/<name>.md` for project-specific data that your custom protocols need.
+**Note:** If the user asks you to *create* a custom protocol or reference, follow the standard registry format documented in `protocols/_registry.json` and `_registry.schema.json`. Create the file or directory in `.stackshift/protocols/` and add an entry to `.stackshift/protocols/_registry.json`.
 
 ---
 
@@ -252,26 +235,3 @@ Add custom reference lookups in `.stackshift/references/<name>.md` for project-s
 StackShift delegates component body generation to `ui-forge` at Step 4 (see `workflow/4-variants.md`). The two skills share protocol awareness through the `designStandards` field in `design/design-arch.json`: during bootstrap, StackShift writes pointers to `variant-router` (and any future component-rendering protocols) into this field so that `ui-forge` loads them into its generation context.
 
 The full handshake — skill-root resolution, marker fields (`.stackshift/installed.json` vs `design/design-arch.json`), the optional `_paired` mirror block, the flag refusal matrix, modifier composition, and the contract version handoff — is documented canonically in `protocols/paired-mode-contract.md`. Other paired protocols (`accessibility`, `brand`, `claude-design-handoff`, `auto-verify-hook`) link to that document instead of restating its rules.
-
----
-
-## 6. Extending the Skill (Skill Maintainers)
-
-For skill maintainers adding protocols to the core skill:
-
-- **New protocol** → add file to `protocols/`, register in `protocols/_registry.json`. Existing projects can add it to their project registry.
-- **New workflow step** → add file to `workflow/`, add row to table in Section 1.
-- **New reference** → add file to `references/`, add row to lookup router in Section 3 above.
-
----
-
-## 7. Hard rules (always apply)
-
-- Never reorder steps 1–5.
-- Never use Sanity v4+ APIs (`defineConfig`, etc.). Project is v3.17.
-- Never use `any` in TypeScript.
-- Never write GROQ projections for scalar fields — `...` spread covers them.
-- Never hardcode a fallback variant in `index.tsx` — render `null` when `data?.variant` is absent.
-- Never import a variant's props interface from `@stackshift-ui` — always from `"."`.
-- Never create duplicate field names at the section level — use sub-field `hidden` instead.
-- Never wrap field factories in `defineField()` / `defineType()` — plain objects only.

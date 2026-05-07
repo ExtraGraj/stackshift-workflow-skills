@@ -1,6 +1,6 @@
 {
   "$schema": "../_registry.schema.json",
-  "description": "Registry of StackShift protocols. Each entry has a tier that drives install mode selection and is materialized to .stackshift/protocol/<file or dir> during bootstrap. Entries may be a single file (`file`) or a directory (`dir`) — directories are copied recursively.",
+  "description": "Registry of StackShift protocols. Each entry has a tier that drives install mode selection and is materialized to .stackshift/protocols/<file or dir> during bootstrap. Entries may be a single file (`file`) or a directory (`dir`) — directories are copied recursively.",
   "tiers": {
     "required": "Workflow cannot function correctly without it — violations cause build errors, runtime errors, or schema load failures.",
     "recommended": "Quality and UX — no errors if omitted, but Sanity Studio or author experience suffers noticeably.",

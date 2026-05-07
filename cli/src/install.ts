@@ -36,7 +36,7 @@ const { pathExistsSync, readJsonSync } = fsExtra;
 import { loadSkills, loadProtocolRegistry } from './registry.js';
 import { runPrompts } from './prompts.js';
 import { writeSelection, runBootstrapMaterialization } from './writer.js';
-import { parseFlags, validateFlags, hasRequiredFlags, showHelp } from './flags.js';
+import { parseFlags, validateFlags, isNonInteractive, showHelp } from './flags.js';
 import type { Platform, InstallChoices } from './prompts.js';
 
 const PLATFORM_PROJECT_DIR: Record<Platform, string> = {
@@ -146,7 +146,7 @@ export async function install(): Promise<void> {
     process.exit(0);
   }
 
-  const isInteractive = !flags.noInteractive && !hasRequiredFlags(flags);
+  const isInteractive = !flags.noInteractive && !isNonInteractive(flags);
   if (isInteractive) {
     intro('StackShift Skills Installation');
   }
@@ -226,7 +226,7 @@ export async function install(): Promise<void> {
       note(
         'All bootstrap steps (file materialization, UI Forge integration, hooks)\n' +
         'will run on first AI agent invocation.\n\n' +
-        'To materialize files later, run: npx stackshift init --materialize',
+        'To materialize files later, run: npx @extragraj/stackshift-skills init',
         'Bootstrap deferred',
       );
     }
@@ -350,7 +350,7 @@ export async function install(): Promise<void> {
     note(
       'All bootstrap steps (file materialization, UI Forge integration, hooks)\n' +
       'will run on first AI agent invocation.\n\n' +
-      'To materialize files later, run: npx stackshift init --materialize',
+      'To materialize files later, run: npx @extragraj/stackshift-skills init',
       'Bootstrap deferred',
     );
   }
@@ -369,9 +369,7 @@ export async function install(): Promise<void> {
   outro(
     summary + '\n' +
       skillNames.map((name) => `  ✓ ${name}`).join('\n') + '\n\n' +
-      (!flags.bootstrap
-        ? 'Run your AI agent in this project to complete bootstrap\n' +
-          '(protocol materialization, design/standards/, UI Forge integration).'
-        : 'Run your AI agent to complete UI Forge integration steps.'),
+      'Run your AI agent in this project to complete bootstrap\n' +
+      '(protocol materialization, design/standards/, UI Forge integration).',
   );
 }

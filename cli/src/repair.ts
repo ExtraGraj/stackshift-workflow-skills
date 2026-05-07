@@ -402,8 +402,7 @@ export async function repair(): Promise<void> {
   } else if (allSeedFolders.size === 0 && recordedSeed) {
     note(
       `installed.json records seed "${recordedSeed}" but no stackshift-seed-* folder was found.\n` +
-      `Run: npx skills add extragraj/stackshift-workflow-skills to reinstall,\n` +
-      `or run: npx @extragraj/stackshift-skills init to change or clear the selection.`,
+      `Run: npx @extragraj/stackshift-skills init to reinstall or change the selection.`,
       'Seed warning'
     );
     outroLines.push(`⚠ Seed "${recordedSeed}" recorded but not installed as a folder`);

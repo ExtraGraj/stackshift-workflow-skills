@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A monorepo (pnpm workspaces) containing:
 - **`skills/`** — Agentic skill files (Markdown + JSON) that AI agents load at runtime to implement StackShift sections
-- **`cli/`** — A TypeScript CLI (`npx stackshift init`) that installs skills into target projects
+- **`cli/`** — A TypeScript CLI (`npx @extragraj/stackshift-skills init`) that installs skills into target projects
 
 The skills themselves are not executed code — they are structured Markdown documents that AI agents read as instructions. The CLI is the only runnable TypeScript in this repo.
 
@@ -22,7 +22,7 @@ cd cli && pnpm build       # tsc → outputs to cli/dist/
 cd cli && pnpm dev         # tsx src/index.ts
 
 # Run the interactive installer
-npx stackshift init
+npx @extragraj/stackshift-skills init
 ```
 
 From the repo root:
@@ -44,7 +44,7 @@ Skills install to `.agents/skills/` in target projects (or `~/.agents/skills/` f
 - `protocols/` — convention library; each file is a named protocol with a tier
 - `protocols/_registry.json` — the only index the CLI and bootstrap read; adding a protocol requires a new entry here
 - `references/` — lookup tables (field factories, GROQ fragments, types, file map, versions); discoverable only via the router table in `SKILL.md` Section 3
-- `bootstrap/` — first-run install flow for materializing protocols into `/docs/protocol/` in target projects
+- `bootstrap/` — first-run install flow for materializing protocols into `.stackshift/protocols/` in target projects
 - `seeds/` — seed strategies; each strategy has a canonical `.md` file here and a discoverable stub in `skills/stackshift-seed-<name>/`; `_registry.json` is the index
 
 **Protocol tier bundles** (`stackshift-protocols-required`, `stackshift-protocols-recommended`, `stackshift-protocols-full`) each contain only a `SKILL.md` index. All protocol content lives in `stackshift-core/protocols/`. Tiers are `required` / `recommended` / `optional`.
@@ -70,7 +70,7 @@ The CLI reads the `skills/` directory at runtime relative to its own `__dirname`
 
 ### Bootstrap Flow
 
-On first AI invocation in a target project (no `.stackshift/installed.json`), the skill runs `bootstrap/install.md`: prompts for install mode, copies selected protocols to `/docs/protocol/`, writes the marker file. Project copies in `/docs/protocol/` take precedence over bundled skill copies at every subsequent lookup.
+On first AI invocation in a target project (no `.stackshift/installed.json`), the skill runs `bootstrap/install.md`: prompts for install mode, copies selected protocols to `.stackshift/protocols/`, writes the marker file. Project copies in `.stackshift/protocols/` take precedence over bundled skill copies at every subsequent lookup.
 
 Bootstrap also wires up the StackShift ↔ UI Forge handshake when UI Forge is detected:
 

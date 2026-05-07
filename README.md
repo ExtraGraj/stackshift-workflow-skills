@@ -66,7 +66,7 @@ npx skills add extragraj/stackshift-workflow-skills -a claude-code
 | Skill Package | Protocols Included | Use Case |
 |---------------|-------------------|----------|
 | `stackshift-protocols-required` | 4 required protocols | Minimal installation |
-| `stackshift-protocols-recommended` | 4 required + 6 recommended (default) | **Recommended for most users** |
+| `stackshift-protocols-recommended` | 4 required + 7 recommended (default) | **Recommended for most users** |
 | `stackshift-protocols-full` | All tiers (required + recommended + optional) | Complete protocol coverage |
 
 #### Fixing Multi-Tier or Multi-Seed Installations
@@ -100,9 +100,6 @@ npx @extragraj/stackshift-skills init --seed initialvalue-seeding --no-interacti
 
 # Non-interactive with deferred bootstrap (all steps on first AI invocation)
 npx @extragraj/stackshift-skills init --tier recommended --no-materialize --no-interactive
-
-# Non-interactive with materialization (default, runs CLI + AI phases)
-npx @extragraj/stackshift-skills init --tier recommended --materialize --no-interactive
 ```
 
 **Available Flags:**
@@ -113,7 +110,6 @@ npx @extragraj/stackshift-skills init --tier recommended --materialize --no-inte
 | `--scope` | `project`, `global` | `project` | Install location |
 | `--platform` | `agents`, `claude`, `copilot`, `gemini`, `cursor`, or comma-separated | `agents` | Platform(s) to install to |
 | `--seed` | seed id or `none` | `none` | Seeding strategy to activate (e.g. `initialvalue-seeding`) |
-| `--materialize` | (flag) | `true` (default) | Materialize protocols after install (CLI phase). Copies protocols to `.stackshift/protocols/`, creates references and design standards. UI Forge integration steps run on first AI agent invocation. |
 | `--no-materialize` | (flag) | `false` | Skip CLI materialization; defer all steps to AI agent on first invocation. |
 | `--no-interactive` | (flag) | `false` | Skip prompts, use flags + defaults |
 | `--help` | (flag) | - | Show help text |
@@ -329,7 +325,7 @@ npx @extragraj/stackshift-skills init --seed none --no-interactive
 
 Bootstrap materializes selected protocols and creates project infrastructure under `.stackshift/` to enable protocol customization and extension. It occurs in two phases:
 
-**Phase 1: Materialization (CLI)** — Default behavior (`npx stackshift init`)
+**Phase 1: Materialization (CLI)** — Default behavior (`npx @extragraj/stackshift-skills init`)
 - Copies selected protocol files to `.stackshift/protocols/`
 - Creates project protocol registry and README
 - Creates `design/standards/stackshift-section-variants.md`
@@ -358,7 +354,7 @@ When UI Forge is detected, bootstrap also wires up the StackShift ↔ UI Forge h
 - Bootstrap runs on first AI invocation (no marker file present)
 - AI prompts for install mode interactively
 
-**Installation via Option B (npx stackshift init):**
+**Installation via Option B (npx @extragraj/stackshift-skills init):**
 - CLI pre-writes `.stackshift/installed.json` marker with selected tier
 - Bootstrap executes on first AI invocation using recorded selection (no prompts)
 - Applies to project scope installations only; global installations omit the marker
@@ -427,7 +423,7 @@ After bootstrap with "Recommended" mode:
 your-project/
 ├── .stackshift/
 │   ├── installed.json          # Bootstrap marker (mode, protocols, seed, skillVersion, installedAt, a11yRequired, uiForgeIntegration)
-│   ├── protocol/
+│   ├── protocols/
 │   │   ├── _registry.json      # Project protocol registry (custom protocols)
 │   │   ├── _template/          # Template for complex multi-file protocols
 │   │   ├── factory-function-pattern.md
@@ -455,7 +451,7 @@ your-project/
         └── stackshift-section-variants.md   # StackShift section variant conventions for UI Forge
 ```
 
-**Optional protocols** (`brand`, `claude-design-handoff`, `auto-verify-hook`) materialize to `.stackshift/protocols/` only when the `Full` or `Interactive` install mode selects them.
+**Optional protocols** (`brand`, `claude-design-handoff`, `auto-verify-hook`, `modal-sheet`) materialize to `.stackshift/protocols/` only when the `Full` or `Interactive` install mode selects them.
 
 ### Adding Custom Protocols
 
@@ -575,7 +571,7 @@ stackshift-workflow-skills/
 │   │   └── SKILL.md              # Index: 4 required protocols
 │   │
 │   ├── stackshift-protocols-recommended/
-│   │   └── SKILL.md              # Index: 4 required + 5 recommended
+│   │   └── SKILL.md              # Index: 4 required + 7 recommended
 │   │
 │   ├── stackshift-protocols-full/
 │   │   └── SKILL.md              # Index: all tiers
